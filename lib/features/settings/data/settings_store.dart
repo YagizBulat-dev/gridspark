@@ -10,19 +10,24 @@ class SettingsStore extends ChangeNotifier {
       reduceMotionObservable = Observable(
         _readBool(box, 'reduceMotion', false),
       ),
-      musicObservable = Observable(_readBool(box, 'music', true));
+      musicObservable = Observable(_readBool(box, 'music', true)),
+      adaptiveDifficultyObservable = Observable(
+        _readBool(box, 'adaptiveDifficulty', true),
+      );
   final Box<dynamic> box;
   final Observable<bool> darkModeObservable;
   final Observable<bool> soundObservable;
   final Observable<bool> hapticsObservable;
   final Observable<bool> reduceMotionObservable;
   final Observable<bool> musicObservable;
+  final Observable<bool> adaptiveDifficultyObservable;
   Future<void> _writeChain = Future<void>.value();
   bool get darkMode => darkModeObservable.value;
   bool get sound => soundObservable.value;
   bool get haptics => hapticsObservable.value;
   bool get reduceMotion => reduceMotionObservable.value;
   bool get music => musicObservable.value;
+  bool get adaptiveDifficulty => adaptiveDifficultyObservable.value;
 
   Future<void> setDarkMode(bool value) =>
       _set('darkMode', value, darkModeObservable);
@@ -36,6 +41,9 @@ class SettingsStore extends ChangeNotifier {
       _set('reduceMotion', value, reduceMotionObservable);
 
   Future<void> setMusic(bool value) => _set('music', value, musicObservable);
+
+  Future<void> setAdaptiveDifficulty(bool value) =>
+      _set('adaptiveDifficulty', value, adaptiveDifficultyObservable);
 
   Future<void> _set(String key, bool value, Observable<bool> observable) {
     final operation = _writeChain.catchError((_) {}).then((_) async {

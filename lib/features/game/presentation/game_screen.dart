@@ -13,6 +13,8 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/arcade_widgets.dart';
 import '../application/game_store.dart';
+import '../domain/analytics/game_session.dart';
+import '../domain/difficulty/adaptive_difficulty.dart';
 import '../domain/game_models.dart';
 import 'effects/effects_overlay.dart';
 import 'game_animation.dart';
@@ -124,6 +126,24 @@ class _GameScreenState extends State<GameScreen>
     );
   }
 
+  /// Persists one finished game and evaluates retention rewards.
+  Future<void> _onSessionEnd(GameSession session) async {
+    final services = widget.services;
+    await services.analytics.record(session);
+    await services.dailyStreak.recordPlay();
+    await services.dailyChallenges.recordDailyScore(session.score);
+    final unlocked = await services.achievements.evaluateAndUnlock(
+      session: session,
+      stats: services.analytics.currentStats(),
+      dailyStreak: services.dailyStreak.current,
+    );
+    if (!mounted || unlocked.isEmpty) return;
+    services.audio.playSfx(Sfx.achievement);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Yeni başarım: ${unlocked.first.title}')),
+    );
+  }
+
   void _createStore() {
     // Dispose old reactions
     for (final d in _disposers.toList()) {
@@ -131,6 +151,9 @@ class _GameScreenState extends State<GameScreen>
     }
     _disposers.clear();
 
+    final baseline = widget.services.analytics.currentStats();
+    final useAdaptive = widget.mode == GameMode.rising &&
+        widget.services.settings.adaptiveDifficulty;
     store = GameStore(
       widget.mode,
       snapshot: widget.services.gameSnapshots.load(widget.mode),
@@ -138,8 +161,11 @@ class _GameScreenState extends State<GameScreen>
       onClearSnapshot: () => widget.services.gameSnapshots.clear(widget.mode),
       onInvalidSnapshot: () => widget.services.gameSnapshots.clear(widget.mode),
       onProgress: widget.services.dailyChallenges.record,
-      onSessionEnd: widget.services.analytics.record,
+      onSessionEnd: _onSessionEnd,
       wasReplay: _nextSessionIsReplay,
+      adaptiveDifficulty: useAdaptive ? AdaptiveDifficultyManager() : null,
+      baselineAverageScore: baseline.averageScore,
+      baselineLossRate: baseline.firstTenLossRate,
     );
     _nextSessionIsReplay = false;
     _setupReactions();

@@ -8,6 +8,7 @@ import '../../../core/theme/arcade_widgets.dart';
 import '../../game/domain/game_models.dart';
 import '../../game/presentation/game_screen.dart';
 import '../../challenges/data/daily_challenge_repository.dart';
+import '../../challenges/data/daily_streak_repository.dart';
 import 'app_nav.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -87,6 +88,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                   children: [
                     _BestScoreCard(score: overall),
+                    const SizedBox(height: 12),
+                    ListenableBuilder(
+                      listenable: services.dailyStreak,
+                      builder: (_, _) =>
+                          _StreakCard(info: services.dailyStreak.info),
+                    ),
                     const SizedBox(height: 16),
                     JuicyButton(
                       label: 'Hemen Oyna',
@@ -206,6 +213,34 @@ class _BestScoreCard extends StatelessWidget {
   );
 }
 
+class _StreakCard extends StatelessWidget {
+  const _StreakCard({required this.info});
+  final DailyStreakInfo info;
+
+  @override
+  Widget build(BuildContext context) => GlassPanel(
+    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+    child: Row(
+      children: [
+        const Icon(Icons.local_fire_department_rounded, color: AppColors.amber),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            info.current > 0
+                ? '${info.current} günlük seri • en iyi ${info.best}'
+                : 'Bugün oynayarak günlük serini başlat',
+            style: AppTheme.jakarta(13),
+          ),
+        ),
+        StatPill(
+          text: info.playedToday ? 'BUGÜN ✓' : 'YENİ',
+          color: info.playedToday ? AppColors.cyan : AppColors.amber,
+        ),
+      ],
+    ),
+  );
+}
+
 class _DailyQuestCard extends StatelessWidget {
   const _DailyQuestCard({required this.challenges});
   final List<DailyChallenge> challenges;
@@ -214,6 +249,7 @@ class _DailyQuestCard extends StatelessWidget {
     DailyChallengeType.lines => '${c.target} satır temizle',
     DailyChallengeType.moves => '${c.target} blok yerleştir',
     DailyChallengeType.timedScore => "Time Attack'te ${c.target} puan yap",
+    DailyChallengeType.dailyScore => 'Günlük skor yarışı: ${c.target} puan',
   };
 
   @override

@@ -6,6 +6,7 @@ import '../domain/analytics/game_session.dart';
 abstract class GameAnalyticsRepository {
   Future<void> record(GameSession session);
   List<GameSession> loadAll();
+  PlayerAnalytics currentStats();
   Future<PlayerAnalytics> stats();
   Future<void> clear();
 }
@@ -48,8 +49,11 @@ class HiveGameAnalyticsRepository implements GameAnalyticsRepository {
   }
 
   @override
-  Future<PlayerAnalytics> stats() async =>
+  PlayerAnalytics currentStats() =>
       const GameAnalyticsEngine().summarize(loadAll());
+
+  @override
+  Future<PlayerAnalytics> stats() async => currentStats();
 
   @override
   Future<void> clear() => _box.delete(_sessionsKey);
@@ -66,8 +70,11 @@ class InMemoryGameAnalyticsRepository implements GameAnalyticsRepository {
   List<GameSession> loadAll() => List.unmodifiable(_sessions);
 
   @override
-  Future<PlayerAnalytics> stats() async =>
+  PlayerAnalytics currentStats() =>
       const GameAnalyticsEngine().summarize(_sessions);
+
+  @override
+  Future<PlayerAnalytics> stats() async => currentStats();
 
   @override
   Future<void> clear() async => _sessions.clear();

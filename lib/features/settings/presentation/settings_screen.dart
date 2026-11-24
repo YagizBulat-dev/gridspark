@@ -81,6 +81,27 @@ class SettingsScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 24),
                     const SectionLabel(
+                      'Zorluk',
+                      icon: Icons.trending_up_rounded,
+                      color: AppColors.cyan,
+                    ),
+                    const SizedBox(height: 8),
+                    GlassPanel(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 4,
+                      ),
+                      child: _SettingRow(
+                        icon: Icons.auto_graph_rounded,
+                        title: 'Uyarlanabilir Zorluk',
+                        subtitle:
+                            'Zorlayan ızgarada performansına göre parça boyutu',
+                        value: services.settings.adaptiveDifficulty,
+                        onChanged: services.settings.setAdaptiveDifficulty,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    const SectionLabel(
                       'Görünüm & Erişilebilirlik',
                       icon: Icons.palette_rounded,
                       color: AppColors.violet,

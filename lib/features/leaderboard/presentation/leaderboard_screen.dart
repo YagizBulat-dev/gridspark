@@ -26,6 +26,8 @@ String _fmt(int n) {
   return out.toString();
 }
 
+enum _BoardScope { global, local, weekly }
+
 class LeaderboardScreen extends StatefulWidget {
   const LeaderboardScreen({super.key, required this.services});
 
@@ -37,7 +39,7 @@ class LeaderboardScreen extends StatefulWidget {
 
 class _LeaderboardScreenState extends State<LeaderboardScreen> {
   late final LeaderboardStore store;
-  bool _global = true;
+  _BoardScope _scope = _BoardScope.global;
 
   @override
   void initState() {
@@ -66,10 +68,14 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
             const ArcadeHeader(subtitle: 'Liderlik'),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-              child: _Segmented<bool>(
-                value: _global,
-                onChanged: (v) => setState(() => _global = v),
-                options: const [(true, 'GLOBAL'), (false, 'YEREL')],
+              child: _Segmented<_BoardScope>(
+                value: _scope,
+                onChanged: (v) => setState(() => _scope = v),
+                options: const [
+                  (_BoardScope.global, 'GLOBAL'),
+                  (_BoardScope.local, 'YEREL'),
+                  (_BoardScope.weekly, 'HAFTALIK'),
+                ],
               ),
             ),
             Observer(
@@ -90,8 +96,15 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
             Expanded(
               child: Observer(
                 builder: (_) {
-                  if (!_global)
+                  if (_scope == _BoardScope.local) {
                     return _ScoreList(scores: store.localScores.toList());
+                  }
+                  if (_scope == _BoardScope.weekly) {
+                    return _ScoreList(
+                      scores: store.weeklyScores.toList(),
+                      message: 'Bu haftanın yerel skorları',
+                    );
+                  }
                   if (store.isLoadingGlobal.value) {
                     return const Center(
                       child: CircularProgressIndicator(color: AppColors.cyan),

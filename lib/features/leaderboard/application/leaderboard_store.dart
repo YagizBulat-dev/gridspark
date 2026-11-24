@@ -6,11 +6,13 @@ class LeaderboardStore {
   LeaderboardStore(this.repository) {
     refreshLocal();
     refreshGlobal();
+    refreshWeekly();
   }
 
   final LeaderboardRepository repository;
   final localScores = ObservableList<ScoreEntry>();
   final globalScores = ObservableList<ScoreEntry>();
+  final weeklyScores = ObservableList<ScoreEntry>();
   final selectedMode = Observable('classic');
   final isLoadingGlobal = Observable(false);
   final globalMessage = Observable<String?>(null);
@@ -24,6 +26,7 @@ class LeaderboardStore {
     runInAction(() => selectedMode.value = mode);
     refreshLocal();
     refreshGlobal();
+    refreshWeekly();
   }
 
   void refreshLocal() {
@@ -32,6 +35,15 @@ class LeaderboardStore {
       localScores
         ..clear()
         ..addAll(repository.localScores(mode: selectedMode.value));
+    });
+  }
+
+  void refreshWeekly() {
+    if (_disposed) return;
+    runInAction(() {
+      weeklyScores
+        ..clear()
+        ..addAll(repository.weeklyLocalScores(mode: selectedMode.value));
     });
   }
 

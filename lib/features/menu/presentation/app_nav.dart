@@ -8,9 +8,10 @@ import '../../game/domain/game_models.dart';
 import '../../game/presentation/game_screen.dart';
 import '../../leaderboard/presentation/leaderboard_screen.dart';
 import '../../settings/presentation/settings_screen.dart';
+import '../../stats/presentation/stats_screen.dart';
 import 'home_screen.dart';
 
-enum AppTab { home, play, leaderboard, settings }
+enum AppTab { home, play, leaderboard, stats, settings }
 
 /// Bottom navigation shared by the menu, leaderboard and settings screens.
 class ArcadeNavBar extends StatelessWidget {
@@ -27,6 +28,7 @@ class ArcadeNavBar extends StatelessWidget {
     (AppTab.home, Icons.sports_esports_rounded, 'Ana Menü'),
     (AppTab.play, Icons.grid_view_rounded, 'Oyna'),
     (AppTab.leaderboard, Icons.emoji_events_rounded, 'Liderlik'),
+    (AppTab.stats, Icons.bar_chart_rounded, 'İstatistik'),
     (AppTab.settings, Icons.settings_rounded, 'Ayarlar'),
   ];
 
@@ -75,6 +77,8 @@ class ArcadeNavBar extends StatelessWidget {
         _replace(context, HomeScreen(services: services));
       case AppTab.leaderboard:
         _replace(context, LeaderboardScreen(services: services));
+      case AppTab.stats:
+        _replace(context, StatsScreen(services: services));
       case AppTab.settings:
         _replace(context, SettingsScreen(services: services));
     }

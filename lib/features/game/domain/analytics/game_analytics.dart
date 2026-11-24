@@ -101,6 +101,10 @@ class GameAnalyticsTracker {
   int _comboCount = 0;
   int _maxStreak = 0;
 
+  int get linesCleared => _linesCleared;
+  int get comboCount => _comboCount;
+  int get maxStreak => _maxStreak;
+
   void recordPlacement({required int lines, required int streak}) {
     if (lines > 0) {
       _linesCleared += lines;

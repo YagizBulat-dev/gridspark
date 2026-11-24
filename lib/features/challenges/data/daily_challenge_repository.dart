@@ -4,7 +4,7 @@ import 'package:hive/hive.dart';
 import '../../game/application/game_store.dart';
 import '../../game/domain/game_models.dart';
 
-enum DailyChallengeType { lines, moves, timedScore }
+enum DailyChallengeType { lines, moves, timedScore, dailyScore }
 
 class DailyChallenge {
   const DailyChallenge({
@@ -25,6 +25,7 @@ class DailyChallenge {
     DailyChallengeType.lines => 'Clear $target lines',
     DailyChallengeType.moves => 'Place $target pieces',
     DailyChallengeType.timedScore => 'Score $target in Timed',
+    DailyChallengeType.dailyScore => 'Daily score race: $target',
   };
 }
 
@@ -60,6 +61,11 @@ class DailyChallengeRepository extends ChangeNotifier {
         target: 700 + (seed % 5) * 100,
         progress: _progress['timedScore'] ?? 0,
       ),
+      DailyChallenge(
+        type: DailyChallengeType.dailyScore,
+        target: 800 + (seed % 5) * 200,
+        progress: _progress['dailyScore'] ?? 0,
+      ),
     ];
   }
 
@@ -73,6 +79,24 @@ class DailyChallengeRepository extends ChangeNotifier {
           event.score > (nextProgress['timedScore'] ?? 0)) {
         nextProgress['timedScore'] = event.score;
       }
+      await _box.put('dailyChallenges', {
+        'day': _dayKey,
+        'progress': nextProgress,
+      });
+      _progress = nextProgress;
+      notifyListeners();
+    });
+    _writeChain = operation;
+    return operation;
+  }
+
+  /// Daily score race keeps the best score achieved today.
+  Future<void> recordDailyScore(int score) {
+    final operation = _writeChain.catchError((_) {}).then((_) async {
+      _ensureToday();
+      if (score <= (_progress['dailyScore'] ?? 0)) return;
+      final nextProgress = Map<String, int>.from(_progress);
+      nextProgress['dailyScore'] = score;
       await _box.put('dailyChallenges', {
         'day': _dayKey,
         'progress': nextProgress,

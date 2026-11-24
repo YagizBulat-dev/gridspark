@@ -26,6 +26,12 @@ class GameEngine {
   static const risingDifficultyThresholds = [1250, 3750];
   static const risingDifficultyMaxCells = [2, 4, 5];
 
+  /// When set by the adaptive difficulty manager this overrides the
+  /// score-threshold cell cap used by Rising mode.
+  int? adaptiveMaxCells;
+
+  void setDifficultyMaxCells(int? cells) => adaptiveMaxCells = cells;
+
   int difficultyLevelForScore(int score) {
     var level = 0;
     for (final threshold in risingDifficultyThresholds) {
@@ -35,7 +41,10 @@ class GameEngine {
   }
 
   int _maxCellsForMode(GameMode mode) {
-    if (mode == GameMode.rising) return risingDifficultyMaxCells[difficultyLevelForScore(score)];
+    if (mode == GameMode.rising) {
+      return adaptiveMaxCells ??
+          risingDifficultyMaxCells[difficultyLevelForScore(score)];
+    }
     // Use maxTrayCells constant for larger tray pieces (up to 7 cells)
     return maxTrayCells;
   }

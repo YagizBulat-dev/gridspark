@@ -3,6 +3,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../../features/leaderboard/data/leaderboard_repository.dart';
+import '../../features/challenges/data/daily_streak_repository.dart';
+import '../../features/game/data/achievement_repository.dart';
 import '../../features/game/data/game_analytics_repository.dart';
 import '../../features/game/data/game_snapshot_repository.dart';
 import '../../features/settings/data/settings_store.dart';
@@ -20,13 +22,19 @@ class AppServices {
     required this.share,
     required this.audio,
     GameAnalyticsRepository? analytics,
-  }) : analytics = analytics ?? InMemoryGameAnalyticsRepository();
+    DailyStreakRepository? dailyStreak,
+    AchievementRepository? achievements,
+  })  : analytics = analytics ?? InMemoryGameAnalyticsRepository(),
+        dailyStreak = dailyStreak ?? InMemoryDailyStreakRepository(),
+        achievements = achievements ?? InMemoryAchievementRepository();
 
   final SettingsStore settings;
   final LeaderboardRepository leaderboard;
   final bool firebaseAvailable;
   final GameSnapshotRepository gameSnapshots;
   final GameAnalyticsRepository analytics;
+  final DailyStreakRepository dailyStreak;
+  final AchievementRepository achievements;
   final DailyChallengeRepository dailyChallenges;
   final ShareService share;
   final AudioService audio;
@@ -38,6 +46,7 @@ class AppServices {
     final gameStateBox = await Hive.openBox<dynamic>('game_state');
     final analyticsBox = await Hive.openBox<dynamic>('game_analytics');
     final challengesBox = await Hive.openBox<dynamic>('daily_challenges');
+    final achievementsBox = await Hive.openBox<dynamic>('achievements');
     var firebaseReady = false;
     try {
       await Firebase.initializeApp();
@@ -59,6 +68,8 @@ class AppServices {
       firebaseAvailable: firebaseReady,
       gameSnapshots: HiveGameSnapshotRepository(gameStateBox),
       analytics: HiveGameAnalyticsRepository(analyticsBox),
+      dailyStreak: DailyStreakRepository(HiveDailyStreakStore(challengesBox)),
+      achievements: AchievementRepository(HiveAchievementStore(achievementsBox)),
       dailyChallenges: DailyChallengeRepository(challengesBox),
       share: NativeShareService(),
       audio: audio,

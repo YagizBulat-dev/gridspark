@@ -108,6 +108,41 @@ class LeaderboardRepository {
     return items.take(20).toList();
   }
 
+  /// Best local scores since Monday 00:00 (local time), offline-friendly.
+  List<ScoreEntry> weeklyLocalScores({String? mode}) {
+    final now = DateTime.now().toLocal();
+    final weekStart = DateTime(
+      now.year,
+      now.month,
+      now.day - now.weekday + 1,
+    );
+    final entries = <ScoreEntry>[];
+    for (final value in _box.values) {
+      if (value is! Map) continue;
+      final created = _parseCreatedAt(value['createdAt']);
+      if (created == null || created.isBefore(weekStart)) continue;
+      final name = value['name'];
+      final score = value['score'];
+      final entryMode = value['mode'];
+      if (name is! String || score is! num || entryMode is! String) continue;
+      if (!_isValidNickname(name) ||
+          !_isValidScore(score) ||
+          !validGameModes.contains(entryMode)) {
+        continue;
+      }
+      if (mode != null && entryMode != mode) continue;
+      entries.add(
+        ScoreEntry(
+          name: sanitizeNickname(name),
+          score: score.toInt(),
+          mode: entryMode,
+        ),
+      );
+    }
+    entries.sort((a, b) => b.score.compareTo(a.score));
+    return entries.take(20).toList();
+  }
+
   Future<LeaderboardLoadResult> globalScores(String mode) async {
     _validateMode(mode);
     if (!firebaseEnabled) {
@@ -203,10 +238,15 @@ bool _isValidScore(num score) {
   return score >= 0 && score <= maxAcceptedScore;
 }
 
-bool _hasValidCreatedAt(Object? value) {
-  if (value == null) return true; // Supports legacy local records.
-  if (value is Timestamp || value is DateTime) return true;
-  return value is String && DateTime.tryParse(value) != null;
+bool _hasValidCreatedAt(Object? value) =>
+    value == null || _parseCreatedAt(value) != null;
+
+DateTime? _parseCreatedAt(Object? value) {
+  if (value == null) return null; // Supports legacy local records.
+  if (value is Timestamp) return value.toDate();
+  if (value is DateTime) return value;
+  if (value is String) return DateTime.tryParse(value);
+  return null;
 }
 
 String sanitizeNickname(String nickname) {

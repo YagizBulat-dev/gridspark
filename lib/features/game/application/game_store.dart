@@ -5,6 +5,7 @@ import 'package:mobx/mobx.dart';
 import '../data/game_snapshot_repository.dart';
 import '../domain/analytics/game_analytics.dart';
 import '../domain/analytics/game_session.dart';
+import '../domain/difficulty/adaptive_difficulty.dart';
 import '../domain/game_engine.dart';
 import '../domain/game_models.dart';
 
@@ -26,10 +27,16 @@ class GameStore {
     this.onSessionEnd,
     bool wasReplay = false,
     GameAnalyticsTracker? analytics,
+    AdaptiveDifficultyManager? adaptiveDifficulty,
+    double baselineAverageScore = 0,
+    double baselineLossRate = 0,
   }) : engine = engine ?? GameEngine(),
        _periodicTimer = periodicTimer ?? Timer.periodic,
        _analytics = analytics ??
-           GameAnalyticsTracker(mode: mode, wasReplay: wasReplay) {
+           GameAnalyticsTracker(mode: mode, wasReplay: wasReplay),
+       _adaptiveDifficulty = adaptiveDifficulty,
+       _baselineAverageScore = baselineAverageScore,
+       _baselineLossRate = baselineLossRate {
     secondsLeft.value = initialSeconds;
     if (snapshot != null && snapshot.mode == mode && snapshot.isValid) {
       if (!_restore(snapshot)) {
@@ -52,6 +59,9 @@ class GameStore {
   final FutureOr<void> Function(GameProgressEvent event)? onProgress;
   final FutureOr<void> Function(GameSession session)? onSessionEnd;
   final GameAnalyticsTracker _analytics;
+  final AdaptiveDifficultyManager? _adaptiveDifficulty;
+  final double _baselineAverageScore;
+  final double _baselineLossRate;
   bool _sessionFinalized = false;
   final gridVersion = Observable(0);
   final score = Observable(0);
@@ -83,6 +93,8 @@ class GameStore {
 
   void _startFresh({List<BlockShape>? initialTray, bool resetEngine = true}) {
     if (resetEngine) engine.reset();
+    _adaptiveDifficulty?.reset();
+    engine.setDifficultyMaxCells(null);
     tray
       ..clear()
       ..addAll(initialTray ?? engine.generateTray(mode));
@@ -96,6 +108,36 @@ class GameStore {
     lastPlacedColorIndex.value = -1;
     trayRefillSlot.value = -1;
     gridVersion.value++;
+  }
+
+  /// Performance-based for Rising mode; other modes keep their fixed caps.
+  void _applyDifficulty() {
+    if (mode != GameMode.rising) return;
+    final manager = _adaptiveDifficulty;
+    if (manager == null) {
+      engine.setDifficultyMaxCells(null);
+      final level = engine.difficultyLevelForScore(engine.score);
+      if (level != difficultyLevel.value) difficultyLevel.value = level;
+      return;
+    }
+    final seconds = mode == GameMode.timed
+        ? 120 - secondsLeft.value
+        : DateTime.now().difference(_analytics.startedAt).inSeconds;
+    final decision = manager.decisionFor(
+      PerformanceSnapshot(
+        moves: engine.moves,
+        linesCleared: _analytics.linesCleared,
+        bestStreak: _analytics.maxStreak,
+        score: engine.score,
+        averageScore: _baselineAverageScore,
+        recentLossRate: _baselineLossRate,
+        secondsPlayed: seconds < 0 ? 0 : seconds,
+      ),
+    );
+    engine.setDifficultyMaxCells(decision.maxCells);
+    if (decision.level != difficultyLevel.value) {
+      runInAction(() => difficultyLevel.value = decision.level);
+    }
   }
 
   void _discardInvalidSnapshot() {
@@ -161,10 +203,8 @@ class GameStore {
       streak.value = snapshot.streak;
       bestStreak.value = snapshot.bestStreak;
       secondsLeft.value = snapshot.secondsLeft;
-      if (mode == GameMode.rising) {
-        difficultyLevel.value =
-            engine.difficultyLevelForScore(snapshot.score);
-      }
+      _adaptiveDifficulty?.reset();
+      _applyDifficulty();
       if (!engine.hasAnyMove(tray.whereType<BlockShape>())) {
         _endGame(GameEndReason.boardFull, fatalShapeId: _stuckShapeId());
       }
@@ -259,12 +299,7 @@ class GameStore {
       trayRefillCount.value++;
 
       score.value = engine.score;
-      if (mode == GameMode.rising) {
-        final newLevel = engine.difficultyLevelForScore(engine.score);
-        if (newLevel != difficultyLevel.value) {
-          difficultyLevel.value = newLevel;
-        }
-      }
+      _applyDifficulty();
       lastPlacementPoints.value = result.points + streakBonus;
       lastClearedLines.value = result.lines;
       lastClearedCells
@@ -312,12 +347,7 @@ class GameStore {
       _analytics.recordClear(linesCleared);
       runInAction(() {
         score.value = engine.score;
-        if (mode == GameMode.rising) {
-          final newLevel = engine.difficultyLevelForScore(engine.score);
-          if (newLevel != difficultyLevel.value) {
-            difficultyLevel.value = newLevel;
-          }
-        }
+        _applyDifficulty();
         gridVersion.value++;
       });
       saveSnapshot();
