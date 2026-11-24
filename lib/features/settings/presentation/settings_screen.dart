@@ -74,7 +74,7 @@ class SettingsScreen extends StatelessWidget {
                       child: _SettingRow(
                         icon: Icons.touch_app_rounded,
                         title: 'Haptik Geri Bildirim',
-                        subtitle: 'Geçersiz yerleştirmede titreşim',
+                        subtitle: 'Yerleştirme, satır temizleme ve hatalı hamlede titreşim',
                         value: services.settings.haptics,
                         onChanged: services.settings.setHaptics,
                       ),

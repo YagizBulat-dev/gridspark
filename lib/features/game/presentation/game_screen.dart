@@ -4,7 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
-import 'package:mobx/mobx.dart';
+import 'package:mobx/mobx.dart' hide Listenable;
 
 import '../../../core/services/app_services.dart';
 import '../../../core/services/audio_service.dart';
@@ -42,6 +42,10 @@ class _GameScreenState extends State<GameScreen>
 
   // --- Combo zoom pulse ---
   late final AnimationController _comboZoomController;
+
+  // --- Screen shake on multi-line clears ---
+  late final AnimationController _shakeController;
+  double _shakeAmplitude = 0;
   int _lastComboTrigger = 0;
 
   // --- Streak threshold glow ---
@@ -61,6 +65,10 @@ class _GameScreenState extends State<GameScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _createStore();
+    _shakeController = AnimationController(
+      duration: const Duration(milliseconds: 380),
+      vsync: this,
+    );
     _trayShakeController = AnimationController(
       duration: const Duration(milliseconds: 250),
       vsync: this,
@@ -147,6 +155,7 @@ class _GameScreenState extends State<GameScreen>
       reaction((_) => store.comboPopupTrigger.value, (trigger) {
         if (trigger > 0) {
           final lines = store.lastClearedLines.value;
+          _clearFeedback(lines);
           if (lines >= 2) {
             // Combo — pitch varies with line count
             widget.services.audio.playSfx(
@@ -192,6 +201,7 @@ class _GameScreenState extends State<GameScreen>
     store.dispose();
     _trayShakeController.dispose();
     _comboZoomController.dispose();
+    _shakeController.dispose();
     _streakGlowController.dispose();
     _gameOverController.dispose();
     super.dispose();
@@ -354,13 +364,32 @@ class _GameScreenState extends State<GameScreen>
                     const SizedBox(height: 8),
                     // Combo zoom pulse wraps the GameGrid + effects overlay.
                     AnimatedBuilder(
-                      animation: _comboZoomController,
+                      animation: Listenable.merge([
+                        _comboZoomController,
+                        _shakeController,
+                      ]),
                       builder: (context, child) {
                         final t = _comboZoomController.value;
                         final scale = 1.0 + 0.03 * _elasticPulse(t);
-                        return Transform.scale(
-                          scale: reduceMotion ? 1.0 : scale,
-                          child: child,
+                        final st = _shakeController.value;
+                        // Decaying sine wobble, strongest right after the clear.
+                        final dx = reduceMotion || st == 0 || st == 1
+                            ? 0.0
+                            : math.sin(st * math.pi * 7) *
+                                  (1 - st) *
+                                  _shakeAmplitude;
+                        final dy = reduceMotion || st == 0 || st == 1
+                            ? 0.0
+                            : math.cos(st * math.pi * 9) *
+                                  (1 - st) *
+                                  _shakeAmplitude *
+                                  0.5;
+                        return Transform.translate(
+                          offset: Offset(dx, dy),
+                          child: Transform.scale(
+                            scale: reduceMotion ? 1.0 : scale,
+                            child: child,
+                          ),
                         );
                       },
                       child: Stack(
@@ -700,10 +729,34 @@ class _GameScreenState extends State<GameScreen>
     }
   }
 
+  /// Haptics and screen shake that grow with the number of cleared lines.
+  void _clearFeedback(int lines) {
+    if (lines <= 0) return;
+    final settings = widget.services.settings;
+    if (settings.haptics) {
+      if (lines == 1) {
+        HapticFeedback.lightImpact();
+      } else if (lines == 2) {
+        HapticFeedback.mediumImpact();
+      } else {
+        HapticFeedback.heavyImpact();
+        // Double-tap for big combos.
+        Future<void>.delayed(const Duration(milliseconds: 90), () {
+          if (mounted && settings.haptics) HapticFeedback.heavyImpact();
+        });
+      }
+    }
+    if (lines >= 2 && !settings.reduceMotion) {
+      _shakeAmplitude = (lines * 2.5).clamp(5.0, 12.0);
+      _shakeController.forward(from: 0);
+    }
+  }
+
   bool _place(int trayIndex, int row, int col) {
     final placed = store.place(trayIndex, row, col);
     if (placed && mounted) {
       widget.services.audio.playSfx(Sfx.place);
+      if (widget.services.settings.haptics) HapticFeedback.selectionClick();
       setState(() {
         scoreAnimationKey++;
       });
@@ -1023,10 +1076,7 @@ class _NicknameDialogState extends State<_NicknameDialog> {
         autofocus: true,
         maxLength: 24,
         textCapitalization: TextCapitalization.words,
-        decoration: const InputDecoration(
-          hintText: 'Oyuncu',
-          counterText: '',
-        ),
+        decoration: const InputDecoration(hintText: 'Oyuncu', counterText: ''),
         onSubmitted: (v) => Navigator.pop(context, v.trim()),
       ),
       actions: [
