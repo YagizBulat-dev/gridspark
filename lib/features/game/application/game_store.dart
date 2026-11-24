@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:mobx/mobx.dart';
 
 import '../data/game_snapshot_repository.dart';
+import '../domain/analytics/game_analytics.dart';
+import '../domain/analytics/game_session.dart';
 import '../domain/game_engine.dart';
 import '../domain/game_models.dart';
 
@@ -21,8 +23,13 @@ class GameStore {
     this.onClearSnapshot,
     this.onInvalidSnapshot,
     this.onProgress,
+    this.onSessionEnd,
+    bool wasReplay = false,
+    GameAnalyticsTracker? analytics,
   }) : engine = engine ?? GameEngine(),
-       _periodicTimer = periodicTimer ?? Timer.periodic {
+       _periodicTimer = periodicTimer ?? Timer.periodic,
+       _analytics = analytics ??
+           GameAnalyticsTracker(mode: mode, wasReplay: wasReplay) {
     secondsLeft.value = initialSeconds;
     if (snapshot != null && snapshot.mode == mode && snapshot.isValid) {
       if (!_restore(snapshot)) {
@@ -43,6 +50,9 @@ class GameStore {
   final FutureOr<void> Function()? onClearSnapshot;
   final FutureOr<void> Function()? onInvalidSnapshot;
   final FutureOr<void> Function(GameProgressEvent event)? onProgress;
+  final FutureOr<void> Function(GameSession session)? onSessionEnd;
+  final GameAnalyticsTracker _analytics;
+  bool _sessionFinalized = false;
   final gridVersion = Observable(0);
   final score = Observable(0);
   final secondsLeft = Observable(120);
@@ -156,7 +166,7 @@ class GameStore {
             engine.difficultyLevelForScore(snapshot.score);
       }
       if (!engine.hasAnyMove(tray.whereType<BlockShape>())) {
-        _endGame();
+        _endGame(GameEndReason.boardFull, fatalShapeId: _stuckShapeId());
       }
       gridVersion.value++;
       return true;
@@ -179,7 +189,9 @@ class GameStore {
       if (_disposed || generation != _timerGeneration || isPaused) return;
       runInAction(() {
         if (secondsLeft.value > 0) secondsLeft.value--;
-        if (secondsLeft.value <= 0) _endGame();
+        if (secondsLeft.value <= 0) {
+          _endGame(GameEndReason.timeUp, fatalShapeId: _stuckShapeId());
+        }
       });
     });
   }
@@ -267,8 +279,12 @@ class GameStore {
                 '${streak.value}x streak${streakBonus > 0 ? ' • +$streakBonus bonus' : ''}'
           : 'No clear • streak reset';
       gridVersion.value++;
+      _analytics.recordPlacement(
+        lines: result.lines,
+        streak: bestStreak.value,
+      );
       if (!engine.hasAnyMove(tray.whereType<BlockShape>())) {
-        _endGame();
+        _endGame(GameEndReason.boardFull, fatalShapeId: _stuckShapeId());
       }
     });
     final progress = onProgress;
@@ -293,6 +309,7 @@ class GameStore {
   int clearLines() {
     final linesCleared = engine.clearLines();
     if (linesCleared > 0) {
+      _analytics.recordClear(linesCleared);
       runInAction(() {
         score.value = engine.score;
         if (mode == GameMode.rising) {
@@ -308,11 +325,37 @@ class GameStore {
     return linesCleared;
   }
 
-  void _endGame() {
+  void _endGame(GameEndReason reason, {String? fatalShapeId}) {
     if (isGameOver.value) return;
     isGameOver.value = true;
+    _finalizeSession(reason, fatalShapeId: fatalShapeId);
     _cancelTimer();
     unawaited(clearSnapshot());
+  }
+
+  /// First tray piece that has no legal placement — the piece that ended the
+  /// game when the board filled up. Null when no such piece exists.
+  String? _stuckShapeId() {
+    for (final shape in tray) {
+      if (shape != null && !engine.hasAnyMove([shape])) return shape.id;
+    }
+    return null;
+  }
+
+  void _finalizeSession(GameEndReason reason, {String? fatalShapeId}) {
+    if (_sessionFinalized) return;
+    _sessionFinalized = true;
+    final writer = onSessionEnd;
+    if (writer == null) return;
+    final session = _analytics.finish(
+      score: score.value,
+      moves: engine.moves,
+      reason: reason,
+      fatalShapeId: fatalShapeId,
+    );
+    unawaited(
+      Future<void>.sync(() => writer(session)).catchError((_) {}),
+    );
   }
 
   GameSnapshot createSnapshot() => GameSnapshot(
@@ -367,6 +410,12 @@ class GameStore {
   Future<void> dispose() {
     if (_disposed) return _snapshotWriteChain;
     if (!isGameOver.value && !_snapshotCleared) saveSnapshot();
+    if (!isGameOver.value && engine.moves > 0) {
+      _finalizeSession(
+        GameEndReason.abandoned,
+        fatalShapeId: _stuckShapeId(),
+      );
+    }
     _disposed = true;
     _cancelTimer();
     return _snapshotWriteChain;

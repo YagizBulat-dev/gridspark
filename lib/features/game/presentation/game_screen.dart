@@ -59,6 +59,7 @@ class _GameScreenState extends State<GameScreen>
   late final Animation<double> _gameOverBlur;
   late final Animation<double> _gameOverDarken;
   bool _wasGameOver = false;
+  bool _nextSessionIsReplay = false;
 
   @override
   void initState() {
@@ -137,7 +138,10 @@ class _GameScreenState extends State<GameScreen>
       onClearSnapshot: () => widget.services.gameSnapshots.clear(widget.mode),
       onInvalidSnapshot: () => widget.services.gameSnapshots.clear(widget.mode),
       onProgress: widget.services.dailyChallenges.record,
+      onSessionEnd: widget.services.analytics.record,
+      wasReplay: _nextSessionIsReplay,
     );
+    _nextSessionIsReplay = false;
     _setupReactions();
 
     // Play game music based on mode
@@ -870,6 +874,7 @@ class _GameScreenState extends State<GameScreen>
         _lastComboTrigger = 0;
         _lastStreak = 0;
         _shakingTrayIndex = -1;
+        _nextSessionIsReplay = true;
         _createStore();
       });
     } else if (action == _GameOverAction.menu) {

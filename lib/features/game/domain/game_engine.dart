@@ -1,18 +1,23 @@
 import 'dart:math';
 
 import 'game_models.dart';
-import 'block_generator.dart';
+import 'generation/generation_context.dart';
+import 'generation/piece_generation_system.dart';
+import 'generation/valid_move.dart';
 
 class GameEngine {
-  GameEngine({this.size = 8, Random? random})
-      : random = random ?? Random(),
-        _blockGenerator = BlockGenerator(random: random) {
+  GameEngine({
+    this.size = 8,
+    Random? random,
+    PieceGenerationSystem? pieceGenerator,
+  })  : random = random ?? Random(),
+        _pieceGenerator = pieceGenerator ?? PieceGenerationSystem(random: random) {
     grid = List.generate(size, (_) => List<int>.filled(size, -1));
   }
 
   final int size;
   final Random random;
-  final BlockGenerator _blockGenerator;
+  final PieceGenerationSystem _pieceGenerator;
   late List<List<int>> grid;
   int score = 0;
   int moves = 0;
@@ -81,11 +86,7 @@ class GameEngine {
   }
 
   bool canPlaceBlock(BlockShape shape, int row, int col) =>
-      shape.cells.every((cell) {
-        final r = row + cell.row;
-        final c = col + cell.col;
-        return r >= 0 && c >= 0 && r < size && c < size && grid[r][c] == -1;
-      });
+      ValidMove.canPlace(shape, row, col, grid);
 
   /// Backward-compatible alias for [canPlaceBlock].
   bool canPlace(BlockShape shape, int row, int col) =>
@@ -166,9 +167,25 @@ class GameEngine {
     score += points;
   }
 
-  List<BlockShape> generateTray(GameMode mode) {
-    return _blockGenerator.generateTray(mode, maxCells: _maxCellsForMode(mode));
-  }
+  GenerationContext _generationContext(
+    GameMode mode, {
+    Iterable<String> excludingIds = const [],
+    int? maxCells,
+  }) =>
+      GenerationContext(
+        mode: mode,
+        grid: grid,
+        score: score,
+        moves: moves,
+        maxCells: maxCells ?? _maxCellsForMode(mode),
+        difficultyLevel: mode == GameMode.rising
+            ? difficultyLevelForScore(score)
+            : 0,
+        excludingIds: excludingIds.toSet(),
+      );
+
+  List<BlockShape> generateTray(GameMode mode) =>
+      _pieceGenerator.generateTray(_generationContext(mode));
 
   /// Generates one random tray shape for [mode] without requiring that it
   /// fits on the current board. Tray refills use this so the board can fill
@@ -176,44 +193,24 @@ class GameEngine {
   BlockShape? generateTrayShape(
     GameMode mode, {
     Iterable<String> excludingIds = const [],
-  }) {
-    final excluded = excludingIds.toSet();
-    final candidates = ShapeCatalog.all
-        .where((shape) => !excluded.contains(shape.id))
-        .where((shape) => ShapeCatalog.isAllowedInMode(shape, mode))
-        .where((shape) => shape.cells.length <= _maxCellsForMode(mode))
-        .toList()
-      ..shuffle(random);
-    return candidates.firstOrNull;
-  }
+  }) =>
+      _pieceGenerator.generateRefill(
+        _generationContext(mode, excludingIds: excludingIds),
+      );
 
   BlockShape? generatePlayableShape(
     GameMode mode, {
     Iterable<String> excludingIds = const [],
-  }) {
-    final candidates = ShapeCatalog.all
-        .where(
-          (shape) =>
-              !excludingIds.toSet().contains(shape.id) &&
-              ShapeCatalog.isAllowedInMode(shape, mode) &&
-              shape.cells.length <= _maxCellsForMode(mode) &&
-              hasAnyMove([shape]),
-        )
-        .toList()
-      ..shuffle(random);
-    return candidates.firstOrNull;
-  }
+  }) =>
+      _pieceGenerator.generateRefill(
+        _generationContext(mode, excludingIds: excludingIds),
+        requirePlayable: true,
+      );
 
   bool hasAnyMove(Iterable<BlockShape?> shapes) {
     for (final shape in shapes) {
       if (shape == null) continue;
-      for (var row = 0; row < size; row++) {
-        for (var col = 0; col < size; col++) {
-          if (canPlaceBlock(shape, row, col)) {
-            return true;
-          }
-        }
-      }
+      if (ValidMove.hasAnyMove(shape, grid)) return true;
     }
     return false;
   }

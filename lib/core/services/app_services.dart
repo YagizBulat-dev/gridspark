@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../../features/leaderboard/data/leaderboard_repository.dart';
+import '../../features/game/data/game_analytics_repository.dart';
 import '../../features/game/data/game_snapshot_repository.dart';
 import '../../features/settings/data/settings_store.dart';
 import '../../features/challenges/data/daily_challenge_repository.dart';
@@ -18,12 +19,14 @@ class AppServices {
     required this.dailyChallenges,
     required this.share,
     required this.audio,
-  });
+    GameAnalyticsRepository? analytics,
+  }) : analytics = analytics ?? InMemoryGameAnalyticsRepository();
 
   final SettingsStore settings;
   final LeaderboardRepository leaderboard;
   final bool firebaseAvailable;
   final GameSnapshotRepository gameSnapshots;
+  final GameAnalyticsRepository analytics;
   final DailyChallengeRepository dailyChallenges;
   final ShareService share;
   final AudioService audio;
@@ -33,6 +36,7 @@ class AppServices {
     final settingsBox = await Hive.openBox<dynamic>('settings');
     final scoresBox = await Hive.openBox<dynamic>('scores');
     final gameStateBox = await Hive.openBox<dynamic>('game_state');
+    final analyticsBox = await Hive.openBox<dynamic>('game_analytics');
     final challengesBox = await Hive.openBox<dynamic>('daily_challenges');
     var firebaseReady = false;
     try {
@@ -54,6 +58,7 @@ class AppServices {
       ),
       firebaseAvailable: firebaseReady,
       gameSnapshots: HiveGameSnapshotRepository(gameStateBox),
+      analytics: HiveGameAnalyticsRepository(analyticsBox),
       dailyChallenges: DailyChallengeRepository(challengesBox),
       share: NativeShareService(),
       audio: audio,
