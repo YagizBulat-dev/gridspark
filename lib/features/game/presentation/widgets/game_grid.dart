@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/app_colors.dart';
 import '../../domain/game_engine.dart';
 import '../../domain/game_models.dart';
 import 'block_shape_view.dart';
@@ -92,7 +93,6 @@ class GameGridState extends State<GameGrid> {
         setState(() {});
       }
     }
-
   }
 
   // --- ghost position computation ---
@@ -136,9 +136,7 @@ class GameGridState extends State<GameGrid> {
     final validIndex = trayIndex >= 0 && trayIndex < widget.shapes.length;
     final shape = validIndex ? widget.shapes[trayIndex] : null;
     final isValid =
-        validIndex &&
-        shape != null &&
-        widget.engine.canPlace(shape, row, col);
+        validIndex && shape != null && widget.engine.canPlace(shape, row, col);
 
     final pRows = <int>{};
     final pCols = <int>{};
@@ -239,33 +237,42 @@ class GameGridState extends State<GameGrid> {
             height: widget.size,
             padding: const EdgeInsets.all(gridPadding),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(18),
+              color: AppColors.deck.withValues(alpha: 0.92),
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.3),
-                width: 1.5,
+                color: Colors.white.withValues(alpha: 0.10),
+                width: 1,
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.violet.withValues(alpha: 0.22),
+                  blurRadius: 28,
+                ),
+              ],
             ),
             child: GridView.builder(
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: widget.engine.size * widget.engine.size,
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: widget.engine.size,
-                    ),
-                    itemBuilder: (context, index) {
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: widget.engine.size * widget.engine.size,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: widget.engine.size,
+              ),
+              itemBuilder: (context, index) {
                 final row = index ~/ widget.engine.size;
                 final col = index % widget.engine.size;
                 final value = widget.engine.grid[row][col];
                 final inPreview = _isInPreview(row, col);
-                final willBlast = _previewRows.contains(row) || _previewCols.contains(col);
-                final appearing = _appearingCells.contains(CellOffset(row, col));
+                final willBlast =
+                    _previewRows.contains(row) || _previewCols.contains(col);
+                final appearing = _appearingCells.contains(
+                  CellOffset(row, col),
+                );
 
                 final isOccupied = value >= 0;
                 final shapeColor = isOccupied
                     ? blockColors[value]
                     : (hoverShape != null
-                        ? blockColors[hoverShape!.colorIndex]
-                        : Theme.of(context).colorScheme.primary);
+                          ? blockColors[hoverShape!.colorIndex]
+                          : Theme.of(context).colorScheme.primary);
 
                 Widget cellBody;
 
@@ -328,7 +335,8 @@ class GameGridState extends State<GameGrid> {
                     decoration: BoxDecoration(
                       color: hoverValid
                           ? shapeColor.withValues(alpha: 0.65)
-                          : Theme.of(context).colorScheme.error.withValues(alpha: 0.28),
+                          : Theme.of(context).colorScheme.error
+                                .withValues(alpha: 0.28),
                       borderRadius: BorderRadius.circular(cell * 0.20),
                       border: Border.all(
                         color: hoverValid
@@ -350,15 +358,12 @@ class GameGridState extends State<GameGrid> {
                   // Upcoming Line Clear Blast Highlight
                   cellBody = DecoratedBox(
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFD166).withValues(alpha: 0.22),
+                      color: AppColors.cyan.withValues(alpha: 0.22),
                       borderRadius: BorderRadius.circular(cell * 0.18),
-                      border: Border.all(
-                        color: const Color(0xFFFFD166),
-                        width: 2.0,
-                      ),
+                      border: Border.all(color: AppColors.cyan, width: 2.0),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFFFFD166).withValues(alpha: 0.5),
+                          color: AppColors.cyan.withValues(alpha: 0.5),
                           blurRadius: 8,
                           spreadRadius: 1,
                         ),
@@ -369,10 +374,10 @@ class GameGridState extends State<GameGrid> {
                   // Empty Sunken Board Slot
                   cellBody = DecoratedBox(
                     decoration: BoxDecoration(
-                      color: const Color(0xFF131422),
-                      borderRadius: BorderRadius.circular(cell * 0.18),
+                      color: AppColors.well,
+                      borderRadius: BorderRadius.circular(cell * 0.2),
                       border: Border.all(
-                        color: const Color(0xFF222438),
+                        color: AppColors.cellBorder,
                         width: 1.0,
                       ),
                     ),

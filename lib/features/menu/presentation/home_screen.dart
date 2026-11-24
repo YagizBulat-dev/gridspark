@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../../core/services/app_services.dart';
 import '../../../core/services/audio_service.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/arcade_widgets.dart';
 import '../../game/domain/game_models.dart';
 import '../../game/presentation/game_screen.dart';
-import '../../game/presentation/widgets/block_shape_view.dart';
-import '../../leaderboard/presentation/leaderboard_screen.dart';
-import '../../settings/presentation/settings_screen.dart';
 import '../../challenges/data/daily_challenge_repository.dart';
+import 'app_nav.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.services});
@@ -16,8 +17,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen>
-    with WidgetsBindingObserver {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late AppServices services;
   final Set<DailyChallengeType> _completedChallenges = {};
 
@@ -62,247 +62,85 @@ class _HomeScreenState extends State<HomeScreen>
     super.dispose();
   }
 
+  int _best(GameMode mode) =>
+      services.leaderboard.localScores(mode: mode.name).firstOrNull?.score ?? 0;
+
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
+    final bests = {for (final m in GameMode.values) m: _best(m)};
+    final overall = bests.values.fold<int>(0, (a, b) => a > b ? a : b);
 
     return Scaffold(
-      backgroundColor: cs.background,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            // Background glow accents
-            Positioned(
-              top: -40,
-              left: -40,
-              child: Container(
-                width: 200,
-                height: 200,
-                decoration: BoxDecoration(
-                  color: cs.primary.withValues(alpha: 0.08),
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: -40,
-              right: -40,
-              child: Container(
-                width: 180,
-                height: 180,
-                decoration: BoxDecoration(
-                  color: cs.tertiary.withValues(alpha: 0.08),
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-            // Main content
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 24, 12, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // ── Top bar: logo + profile ──
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: () {},
-                            child: Padding(
-                              padding: const EdgeInsets.all(12.0),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.grid_view,
-                                    color: Colors.white,
-                                    size: 28,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'GridSpark',
-                                    style: TextStyle(
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.w800,
-                                      color: cs.onSurface,
-                                      fontFamily: 'PlusJakartaSans',
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      // Profile circle
-                      CircleAvatar(
-                        radius: 18,
-                        backgroundColor: cs.primaryContainer,
-                        foregroundColor: cs.onPrimaryContainer,
-                        child: const Icon(
-                          Icons.person,
-                          size: 18,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-
-                  // ── Score & modes row ──
-                  Row(
-                    children: [
-                      // Highscore
-                      Expanded(
-                        child: Card(
-                          color: cs.surfaceContainerHigh,
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.emoji_events_outlined,
-                                  color: Colors.amber,
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'Rekor: 14,850',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: cs.onSurface,
-                                    fontFamily: 'PlusJakartaSans',
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      // Level
-                      Expanded(
-                        child: Card(
-                          color: cs.surfaceContainerHigh,
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.trending_up,
-                                  color: cs.tertiary,
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'L14',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: cs.onSurface,
-                                    fontFamily: 'PlusJakartaSans',
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const Spacer(),
-
-                  // ── Game mode buttons ──
-                  const SizedBox(height: 16),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      _ModeButton(
-                        icon: Icons.play_arrow_rounded,
-                        label: 'Classic',
-                        subtitle: 'Endless — place until no moves left',
-                        color: cs.primary,
-                        onPressed: () => _play(context, GameMode.classic),
-                      ),
-                      _ModeButton(
-                        icon: Icons.timer_outlined,
-                        label: 'Time Attack',
-                        subtitle: '2 min countdown',
-                        color: cs.tertiary,
-                        onPressed: () => _play(context, GameMode.timed),
-                      ),
-                      _ModeButton(
-                        icon: Icons.trending_up,
-                        label: 'Rising',
-                        subtitle: 'Gets harder as you score',
-                        color: cs.tertiary,
-                        onPressed: () => _play(context, GameMode.rising),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-
-                  // ── Daily challenges ──
-                  const SizedBox(height: 16),
-                  Text(
-                    'Daily Sparks',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: cs.onSurfaceVariant,
-                      fontFamily: 'PlusJakartaSans',
+      backgroundColor: AppColors.canvas,
+      bottomNavigationBar: ArcadeNavBar(
+        services: services,
+        current: AppTab.home,
+      ),
+      body: ArcadeBackground(
+        child: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              const ArcadeHeader(subtitle: 'Ana Menü'),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                  children: [
+                    _BestScoreCard(score: overall),
+                    const SizedBox(height: 16),
+                    JuicyButton(
+                      label: 'Hemen Oyna',
+                      icon: Icons.play_arrow_rounded,
+                      height: 64,
+                      onPressed: () => _play(context, GameMode.classic),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  _DailyChallengesCard(
-                    challenges: services.dailyChallenges.challenges,
-                  ),
-                  const SizedBox(height: 24),
-
-                  // ── Bottom: Leaderboard + Settings ──
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _NavIconButton(
-                        icon: Icons.emoji_events_outlined,
-                        label: 'Liderlik',
-                        color: cs.tertiary,
-                        onPressed: () {
-                          services.audio.playSfx(Sfx.buttonClick);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => LeaderboardScreen(services: services),
-                            ),
-                          );
-                        },
+                    const SizedBox(height: 16),
+                    ListenableBuilder(
+                      listenable: services.dailyChallenges,
+                      builder: (_, _) => _DailyQuestCard(
+                        challenges: services.dailyChallenges.challenges,
                       ),
-                      const SizedBox(width: 24),
-                      _NavIconButton(
-                        icon: Icons.settings_outlined,
-                        label: 'Ayarlar',
-                        color: cs.onSurfaceVariant,
-                        onPressed: () {
-                          services.audio.playSfx(Sfx.buttonClick);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => SettingsScreen(services: services),
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                ],
+                    ),
+                    const SizedBox(height: 24),
+                    const SectionLabel(
+                      'Oyun Modları',
+                      icon: Icons.sports_esports_rounded,
+                    ),
+                    const SizedBox(height: 12),
+                    _ModeCard(
+                      icon: Icons.all_inclusive_rounded,
+                      color: AppColors.cyan,
+                      title: 'Klasik Mod',
+                      badge: 'SONSUZ',
+                      description: 'Süresiz, stratejik rahatlama. Hamle kalmayana kadar blokları yerleştir.',
+                      best: bests[GameMode.classic]!,
+                      onTap: () => _play(context, GameMode.classic),
+                    ),
+                    const SizedBox(height: 12),
+                    _ModeCard(
+                      icon: Icons.timer_outlined,
+                      color: AppColors.amber,
+                      title: 'Time Attack',
+                      badge: '02:00',
+                      description: '2 dakikaya karşı yarış! Hızlı kombolarla en yüksek skoru yap.',
+                      best: bests[GameMode.timed]!,
+                      onTap: () => _play(context, GameMode.timed),
+                    ),
+                    const SizedBox(height: 12),
+                    _ModeCard(
+                      icon: Icons.trending_up_rounded,
+                      color: AppColors.violet,
+                      title: 'Zorlaşan Izgara',
+                      badge: 'UZMAN',
+                      description: 'Skor yükseldikçe zorluk artar. Yüksek risk, devasa kıvılcım.',
+                      best: bests[GameMode.rising]!,
+                      onTap: () => _play(context, GameMode.rising),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -316,192 +154,233 @@ class _HomeScreenState extends State<HomeScreen>
         builder: (_) => GameScreen(mode: mode, services: services),
       ),
     ).then((_) {
-      // Returning from game — restart menu music
+      // Returning from game: refresh bests and restart menu music.
+      if (mounted) setState(() {});
       services.audio.playMusic(MusicTrack.menu);
     });
   }
 }
 
-// ── Widgets ──────────────────────────────────────────────────────
-
-// Mode button
-class _ModeButton extends StatelessWidget {
-  const _ModeButton({
-    required this.icon,
-    required this.label,
-    required this.subtitle,
-    required this.color,
-    required this.onPressed,
-  });
-
-  final IconData icon;
-  final String label;
-  final String subtitle;
-  final Color color;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Card(
-      color: color.withValues(alpha: 0.12),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onPressed,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, color: color, size: 28),
-              const SizedBox(height: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: color,
-                  fontFamily: 'PlusJakartaSans',
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                subtitle,
-                style: TextStyle(
-                  fontSize: 10,
-                  color: cs.onSurfaceVariant,
-                  fontFamily: 'PlusJakartaSans',
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+String _fmt(int n) {
+  final s = n.toString();
+  final out = StringBuffer();
+  for (var i = 0; i < s.length; i++) {
+    if (i > 0 && (s.length - i) % 3 == 0) out.write('.');
+    out.write(s[i]);
   }
+  return out.toString();
 }
 
-// Daily challenges card
-class _DailyChallengesCard extends StatelessWidget {
-  const _DailyChallengesCard({
-    required this.challenges,
-  });
+class _BestScoreCard extends StatelessWidget {
+  const _BestScoreCard({required this.score});
+  final int score;
 
+  @override
+  Widget build(BuildContext context) => GlassPanel(
+    glow: AppColors.violet,
+    padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+    child: SizedBox(
+      width: double.infinity,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SectionLabel(
+            'Kişisel Rekor',
+            icon: Icons.star_outline_rounded,
+            color: AppColors.amber,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _fmt(score),
+            style: AppTheme.sora(
+              48,
+              weight: FontWeight.w800,
+              color: AppColors.cyan,
+              letterSpacing: -0.96,
+              height: 1.1,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _DailyQuestCard extends StatelessWidget {
+  const _DailyQuestCard({required this.challenges});
   final List<DailyChallenge> challenges;
 
+  static String _title(DailyChallenge c) => switch (c.type) {
+    DailyChallengeType.lines => '${c.target} satır temizle',
+    DailyChallengeType.moves => '${c.target} blok yerleştir',
+    DailyChallengeType.timedScore => "Time Attack'te ${c.target} puan yap",
+  };
+
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final completed = challenges.where((ch) => ch.complete).length;
-    final total = challenges.length;
-
-    return Card(
-      color: cs.surfaceContainerHigh,
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            // Progress circle
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: cs.primary.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: Text(
-                  '$completed/$total',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: cs.primary,
-                    fontFamily: 'PlusJakartaSans',
-                  ),
+    final done = challenges.where((c) => c.complete).length;
+    return GlassPanel(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: SectionLabel(
+                  'Günün Görevleri',
+                  icon: Icons.flag_rounded,
+                  color: AppColors.amber,
                 ),
               ),
-            ),
-            const SizedBox(width: 12),
-            // Challenges list
-            Expanded(
+              StatPill(
+                text: '$done/${challenges.length}',
+                color: AppColors.amber,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          for (final c in challenges)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: List.generate(
-                  challenges.length,
-                  (index) => Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Row(
-                      children: [
-                        Icon(
-                          index < completed
-                              ? Icons.check_circle_outlined
-                              : Icons.radio_button_off,
-                          color: index < completed ? cs.primary : cs.onSurfaceVariant,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          challenges[index].type.toString().split('.').last,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: cs.onSurface,
-                            fontFamily: 'PlusJakartaSans',
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _title(c),
+                          style: AppTheme.jakarta(
+                            14,
+                            weight: FontWeight.w600,
+                            color: c.complete
+                                ? AppColors.onSurfaceVariant
+                                : AppColors.onSurface,
                           ),
                         ),
-                      ],
+                      ),
+                      if (c.complete)
+                        const Icon(
+                          Icons.check_circle_rounded,
+                          size: 18,
+                          color: AppColors.cyan,
+                        )
+                      else
+                        Text(
+                          '${c.cappedProgress}/${c.target}',
+                          style: AppTheme.grotesk(12),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(999),
+                    child: LinearProgressIndicator(
+                      value: c.fraction,
+                      minHeight: 8,
+                      backgroundColor: AppColors.canvas,
+                      valueColor: AlwaysStoppedAnimation(
+                        c.complete ? AppColors.cyan : AppColors.amber,
+                      ),
                     ),
                   ),
-                ),
+                ],
               ),
             ),
-          ],
-        ),
+        ],
       ),
     );
   }
 }
 
-// Navigation icon button
-class _NavIconButton extends StatelessWidget {
-  const _NavIconButton({
+class _ModeCard extends StatelessWidget {
+  const _ModeCard({
     required this.icon,
-    required this.label,
     required this.color,
-    required this.onPressed,
+    required this.title,
+    required this.badge,
+    required this.description,
+    required this.best,
+    required this.onTap,
   });
 
   final IconData icon;
-  final String label;
   final Color color;
-  final VoidCallback onPressed;
+  final String title;
+  final String badge;
+  final String description;
+  final int best;
+  final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onPressed,
-        child: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, color: color, size: 24),
-              const SizedBox(height: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: color,
-                  fontFamily: 'PlusJakartaSans',
-                ),
-              ),
-            ],
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: '$title. En yüksek skor ${_fmt(best)}',
+    child: GlassPanel(
+      onTap: onTap,
+      glow: color,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              color: AppColors.well,
+              border: Border.all(color: color.withValues(alpha: 0.5)),
+              boxShadow: [
+                BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 14),
+              ],
+            ),
+            child: Icon(icon, color: color, size: 28),
           ),
-        ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: AppTheme.sora(18, weight: FontWeight.w600),
+                      ),
+                    ),
+                    StatPill(text: badge, color: color),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  description,
+                  style: AppTheme.jakarta(
+                    13,
+                    color: AppColors.onSurfaceVariant,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.emoji_events_outlined,
+                      size: 16,
+                      color: AppColors.amber,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Rekor ${_fmt(best)}',
+                      style: AppTheme.grotesk(12, color: AppColors.amber),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
 }

@@ -1,17 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/theme/app_colors.dart';
 import '../../domain/game_models.dart';
 
-const blockColors = [
-  Color(0xFF7C5CFF),
-  Color(0xFF26D7B7),
-  Color(0xFFFFB84D),
-  Color(0xFFFF6577),
-  Color(0xFF4CB5FF),
-  Color(0xFFC76CFF),
-  Color(0xFF8AC926),
-  Color(0xFFFF7A45),
-];
+const blockColors = AppColors.blocks;
 
 class BlockShapeView extends StatelessWidget {
   const BlockShapeView({
@@ -45,18 +37,28 @@ class BlockShapeView extends StatelessWidget {
                   Positioned.fill(
                     child: DecoratedBox(
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(cellSize * 0.22),
+                        borderRadius: BorderRadius.circular(cellSize * 0.2),
                         gradient: LinearGradient(
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                           colors: [
-                            Color.lerp(blockColors[shape.colorIndex], Colors.white, 0.32)!,
+                            Color.lerp(
+                              blockColors[shape.colorIndex],
+                              Colors.white,
+                              0.22,
+                            )!,
                             blockColors[shape.colorIndex],
-                            Color.lerp(blockColors[shape.colorIndex], Colors.black, 0.28)!,
+                            Color.lerp(
+                              blockColors[shape.colorIndex],
+                              Colors.black,
+                              0.18,
+                            )!,
                           ],
                         ),
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: isDragging ? 0.45 : 0.22),
+                          color: Colors.white.withValues(
+                            alpha: isDragging ? 0.45 : 0.22,
+                          ),
                           width: 1.2,
                         ),
                         boxShadow: [
@@ -65,7 +67,9 @@ class BlockShapeView extends StatelessWidget {
                               alpha: isDragging ? 0.65 : 0.38,
                             ),
                             blurRadius: isDragging ? 12 : 5,
-                            offset: isDragging ? const Offset(0, 6) : const Offset(0, 2),
+                            offset: isDragging
+                                ? const Offset(0, 6)
+                                : const Offset(0, 2),
                           ),
                         ],
                       ),

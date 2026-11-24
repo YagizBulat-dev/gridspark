@@ -1,89 +1,212 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/services/app_services.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../core/theme/arcade_widgets.dart';
+import '../../menu/presentation/app_nav.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key, required this.services});
   final AppServices services;
+
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: services.settings,
     builder: (_, _) => Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Card(
-            child: Column(
-              children: [
-                SwitchListTile(
-                  secondary: const Icon(Icons.dark_mode_outlined),
-                  title: const Text('Dark mode'),
-                  value: services.settings.darkMode,
-                  onChanged: services.settings.setDarkMode,
+      backgroundColor: AppColors.canvas,
+      bottomNavigationBar: ArcadeNavBar(
+        services: services,
+        current: AppTab.settings,
+      ),
+      body: ArcadeBackground(
+        child: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              const ArcadeHeader(subtitle: 'Ayarlar'),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                  children: [
+                    const SectionLabel(
+                      'Ses & Müzik',
+                      icon: Icons.graphic_eq_rounded,
+                    ),
+                    const SizedBox(height: 8),
+                    GlassPanel(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 4,
+                      ),
+                      child: Column(
+                        children: [
+                          _SettingRow(
+                            icon: Icons.volume_up_rounded,
+                            title: 'Ses Efektleri',
+                            subtitle: 'Blok yerleştirme ve kombo sesleri',
+                            value: services.settings.sound,
+                            onChanged: services.settings.setSound,
+                          ),
+                          const Divider(),
+                          _SettingRow(
+                            icon: Icons.music_note_rounded,
+                            title: 'Arka Plan Müziği',
+                            subtitle: 'Synthwave arcade ritimleri',
+                            value: services.settings.music,
+                            onChanged: services.settings.setMusic,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    const SectionLabel(
+                      'Dokunsal Geri Bildirim',
+                      icon: Icons.vibration_rounded,
+                      color: AppColors.amber,
+                    ),
+                    const SizedBox(height: 8),
+                    GlassPanel(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 4,
+                      ),
+                      child: _SettingRow(
+                        icon: Icons.touch_app_rounded,
+                        title: 'Haptik Geri Bildirim',
+                        subtitle: 'Geçersiz yerleştirmede titreşim',
+                        value: services.settings.haptics,
+                        onChanged: services.settings.setHaptics,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    const SectionLabel(
+                      'Görünüm & Erişilebilirlik',
+                      icon: Icons.palette_rounded,
+                      color: AppColors.violet,
+                    ),
+                    const SizedBox(height: 8),
+                    GlassPanel(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 4,
+                      ),
+                      child: _SettingRow(
+                        icon: Icons.motion_photos_off_rounded,
+                        title: 'Azaltılmış Hareket',
+                        subtitle:
+                            'Skor ve satır temizleme efektlerini sadeleştir',
+                        value: services.settings.reduceMotion,
+                        onChanged: services.settings.setReduceMotion,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    const SectionLabel(
+                      'Oyuncu Profili & Veri',
+                      icon: Icons.shield_outlined,
+                    ),
+                    const SizedBox(height: 8),
+                    GlassPanel(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      child: Row(
+                        children: [
+                          _IconTile(
+                            icon: services.firebaseAvailable
+                                ? Icons.cloud_done_rounded
+                                : Icons.cloud_off_rounded,
+                            color: services.firebaseAvailable
+                                ? AppColors.cyan
+                                : AppColors.outline,
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  services.firebaseAvailable
+                                      ? 'Firebase bağlı'
+                                      : 'Çevrimdışı mod',
+                                  style: AppTheme.sora(
+                                    15,
+                                    weight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  services.firebaseAvailable
+                                      ? 'Anonim giriş aktif'
+                                      : 'Bulut skorları için Firebase yapılandırması ekle',
+                                  style: AppTheme.jakarta(
+                                    13,
+                                    color: AppColors.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    GlassPanel(
+                      onTap: () => _showPrivacyPolicy(context),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      child: Row(
+                        children: [
+                          const _IconTile(
+                            icon: Icons.privacy_tip_outlined,
+                            color: AppColors.violet,
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Gizlilik Politikası',
+                                  style: AppTheme.sora(
+                                    15,
+                                    weight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'İzleme yok • Anonim skorlar',
+                                  style: AppTheme.jakarta(
+                                    13,
+                                    color: AppColors.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(
+                            Icons.chevron_right_rounded,
+                            color: AppColors.onSurfaceVariant,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Center(
+                      child: Text(
+                        'GridSpark v1.0.0',
+                        style: AppTheme.grotesk(12, color: AppColors.outline),
+                      ),
+                    ),
+                  ],
                 ),
-                SwitchListTile(
-                  secondary: const Icon(Icons.volume_up_outlined),
-                  title: const Text('Sound Effects'),
-                  value: services.settings.sound,
-                  onChanged: services.settings.setSound,
-                ),
-                SwitchListTile(
-                  secondary: const Icon(Icons.music_note_outlined),
-                  title: const Text('Music'),
-                  value: services.settings.music,
-                  onChanged: services.settings.setMusic,
-                ),
-                SwitchListTile(
-                  secondary: const Icon(Icons.motion_photos_off_outlined),
-                  title: const Text('Reduce motion'),
-                  subtitle: const Text('Simplify score and line-clear effects'),
-                  value: services.settings.reduceMotion,
-                  onChanged: services.settings.setReduceMotion,
-                ),
-                SwitchListTile(
-                  secondary: const Icon(Icons.vibration_outlined),
-                  title: const Text('Haptics'),
-                  subtitle: const Text('Vibrate on invalid placements'),
-                  value: services.settings.haptics,
-                  onChanged: services.settings.setHaptics,
-                ),
-              ],
-            ),
-          ),
-          Card(
-            child: ListTile(
-              leading: Icon(
-                services.firebaseAvailable ? Icons.cloud_done : Icons.cloud_off,
               ),
-              title: Text(
-                services.firebaseAvailable
-                    ? 'Firebase connected'
-                    : 'Offline mode',
-              ),
-              subtitle: Text(
-                services.firebaseAvailable
-                    ? 'Anonymous sign-in active'
-                    : 'Add platform Firebase configuration to enable cloud scores',
-              ),
-            ),
+            ],
           ),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.privacy_tip_outlined),
-              title: const Text('Privacy Policy'),
-              subtitle: const Text('No tracking • Anonymous scores'),
-              trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: () => _showPrivacyPolicy(context),
-            ),
-          ),
-          const AboutListTile(
-            icon: Icon(Icons.info_outline),
-            applicationName: 'GridSpark',
-            applicationVersion: '1.0.0',
-            applicationLegalese: '© 2026 GridSpark. All rights reserved.',
-          ),
-        ],
+        ),
       ),
     ),
   );
@@ -92,6 +215,7 @@ class SettingsScreen extends StatelessWidget {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      backgroundColor: AppColors.deck,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -118,9 +242,7 @@ class SettingsScreen extends StatelessWidget {
               ),
               Text(
                 'Privacy Policy',
-                style: Theme.of(ctx).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
+                style: AppTheme.sora(22, weight: FontWeight.w800),
               ),
               const SizedBox(height: 16),
               const Text(
@@ -133,17 +255,82 @@ class SettingsScreen extends StatelessWidget {
                 'Game settings, challenge progress, and local high scores are stored strictly on your device using Hive.\n\n'
                 '4. Children’s Privacy:\n'
                 'GridSpark is suitable for all ages and contains no targeted advertising or tracking.',
-                style: TextStyle(height: 1.5, fontSize: 14),
+                style: TextStyle(
+                  height: 1.5,
+                  fontSize: 14,
+                  color: AppColors.onSurfaceVariant,
+                ),
               ),
               const SizedBox(height: 24),
-              FilledButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Close'),
-              ),
+              JuicyButton(label: 'Kapat', onPressed: () => Navigator.pop(ctx)),
             ],
           ),
         ),
       ),
     );
   }
+}
+
+class _IconTile extends StatelessWidget {
+  const _IconTile({required this.icon, this.color = AppColors.cyan});
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 44,
+    height: 44,
+    decoration: BoxDecoration(
+      color: AppColors.well,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: color.withValues(alpha: 0.35)),
+    ),
+    child: Icon(icon, color: color, size: 22),
+  );
+}
+
+class _SettingRow extends StatelessWidget {
+  const _SettingRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) => MergeSemantics(
+    child: Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        children: [
+          _IconTile(icon: icon),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: AppTheme.sora(15, weight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: AppTheme.jakarta(
+                    13,
+                    color: AppColors.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch(value: value, onChanged: onChanged),
+        ],
+      ),
+    ),
+  );
 }

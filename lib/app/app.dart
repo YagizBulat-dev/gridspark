@@ -18,9 +18,8 @@ class GridSparkApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light,
         darkTheme: AppTheme.dark,
-        themeMode: services.settings.darkMode
-            ? ThemeMode.dark
-            : ThemeMode.light,
+        // Obsidian Arcade is a dark-only design.
+        themeMode: ThemeMode.dark,
         home: HomeScreen(services: services),
       ),
     );
