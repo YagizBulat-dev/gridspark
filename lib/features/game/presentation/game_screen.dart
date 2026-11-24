@@ -200,6 +200,7 @@ class _GameScreenState extends State<GameScreen>
   @override
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: AppColors.canvas,
+    resizeToAvoidBottomInset: false,
     body: ArcadeBackground(
       child: SafeArea(
         child: Column(
@@ -348,7 +349,9 @@ class _GameScreenState extends State<GameScreen>
                           style: AppTheme.grotesk(14, color: AppColors.cyan),
                         ),
                       ),
-                    const Spacer(),
+                    // Keep the board near the top and leave room for the tray
+                    // below so the layout no longer overflows on short screens.
+                    const SizedBox(height: 8),
                     // Combo zoom pulse wraps the GameGrid + effects overlay.
                     AnimatedBuilder(
                       animation: _comboZoomController,
@@ -729,36 +732,11 @@ class _GameScreenState extends State<GameScreen>
   /// Prompts the user for a nickname (max 24 chars) before saving.
   /// Returns the sanitized nickname, or 'Player' if the dialog is dismissed.
   Future<String> _promptNickname() async {
-    final controller = TextEditingController();
     final result = await showDialog<String>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Adını yaz'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLength: 24,
-          textCapitalization: TextCapitalization.words,
-          decoration: const InputDecoration(
-            hintText: 'Oyuncu',
-            counterText: '',
-          ),
-          onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, ''),
-            child: const Text('Atla'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-            child: const Text('Kaydet'),
-          ),
-        ],
-      ),
+      builder: (ctx) => const _NicknameDialog(),
     );
-    controller.dispose();
     return (result == null || result.isEmpty) ? 'Player' : result;
   }
 
@@ -1011,6 +989,58 @@ class _AnimatedStat extends StatelessWidget {
       ),
     ],
   );
+}
+
+/// Dialog that owns its own [TextEditingController].
+///
+/// The controller must live as long as the dialog route (including its exit
+/// animation and the IME/text-input connection). Disposing it from the caller
+/// right after `showDialog` completed caused
+/// "A TextEditingController was used after being disposed" followed by a
+/// `_dependents.isEmpty` framework assertion when the keyboard was open.
+class _NicknameDialog extends StatefulWidget {
+  const _NicknameDialog();
+
+  @override
+  State<_NicknameDialog> createState() => _NicknameDialogState();
+}
+
+class _NicknameDialogState extends State<_NicknameDialog> {
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Adını yaz'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        maxLength: 24,
+        textCapitalization: TextCapitalization.words,
+        decoration: const InputDecoration(
+          hintText: 'Oyuncu',
+          counterText: '',
+        ),
+        onSubmitted: (v) => Navigator.pop(context, v.trim()),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, ''),
+          child: const Text('Atla'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _controller.text.trim()),
+          child: const Text('Kaydet'),
+        ),
+      ],
+    );
+  }
 }
 
 class _Stat extends StatelessWidget {

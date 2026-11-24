@@ -16,7 +16,7 @@ const snapshotTraySize = 3;
 const maxSnapshotScore = 10000000;
 const maxSnapshotMoves = 1000000;
 const maxTimedGameSeconds = 120;
-const maxTrayCells = 7; // Max cells per tray shape (artı 5'ten 7'ye)
+const maxTrayCells = 9; // Max cells per tray shape (artı 5'ten 7'ye)
 
 class CellOffset {
   const CellOffset(this.row, this.col);
@@ -157,6 +157,34 @@ abstract final class ShapeCatalog {
       CellOffset(1, 2),
       CellOffset(2, 1),
     ], colorIndex: 7),
+    // Larger rectangular shapes: 2x3, 3x2 and full 3x3 blocks.
+    BlockShape('rect2x3', [
+      CellOffset(0, 0),
+      CellOffset(0, 1),
+      CellOffset(0, 2),
+      CellOffset(1, 0),
+      CellOffset(1, 1),
+      CellOffset(1, 2),
+    ], colorIndex: 2),
+    BlockShape('rect3x2', [
+      CellOffset(0, 0),
+      CellOffset(0, 1),
+      CellOffset(1, 0),
+      CellOffset(1, 1),
+      CellOffset(2, 0),
+      CellOffset(2, 1),
+    ], colorIndex: 4),
+    BlockShape('square3x3', [
+      CellOffset(0, 0),
+      CellOffset(0, 1),
+      CellOffset(0, 2),
+      CellOffset(1, 0),
+      CellOffset(1, 1),
+      CellOffset(1, 2),
+      CellOffset(2, 0),
+      CellOffset(2, 1),
+      CellOffset(2, 2),
+    ], colorIndex: 5),
   ];
 
   static BlockShape? byId(String id) {
