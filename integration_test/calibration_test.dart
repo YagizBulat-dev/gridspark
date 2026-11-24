@@ -144,7 +144,7 @@ void main() {
   /// After each placement, the tray slot becomes null and the Draggable
   /// tree rebuilds, which breaks subsequent gesture recognition. Starting
   /// fresh avoids this issue entirely.
-  Future<void> _runSingleTarget({
+  Future<void> runSingleTarget({
     required String label,
     required (int, int) target,
     required List<BlockShape> trayPieces,
@@ -220,14 +220,9 @@ void main() {
       store.engine.size,
     );
 
-    var localDy = GameGridState.gridPadding +
-        (r + GameGridState.liftCells + 0.4) * pitch;
-    final maxLocalDy = currentGridRect.height - GameGridState.gridPadding;
-    if (localDy >= maxLocalDy) localDy = maxLocalDy - 0.01;
-
     final pointer = currentGridRect.topLeft + Offset(
-      GameGridState.gridPadding + (c + 0.4) * pitch,
-      localDy,
+      GameGridState.gridPadding + (c + usedPiece.width / 2.0) * pitch,
+      GameGridState.gridPadding + (r + usedPiece.height) * pitch + GameGridState.liftOffset,
     );
 
     debugPrint('[calib:$label] pieceCenter=$pieceCenter '
@@ -289,7 +284,7 @@ void main() {
 
   // ── Target: (0,0) — top-left corner, h2 horizontal ──
   testWidgets('drag (0,0) — h2', (tester) async {
-    await _runSingleTarget(
+    await runSingleTarget(
       label: '(0,0)',
       target: (0, 0),
       trayPieces: [
@@ -303,7 +298,7 @@ void main() {
 
   // ── Target: (0,7) — top-right corner, v2 vertical ──
   testWidgets('drag (0,7) — v2', (tester) async {
-    await _runSingleTarget(
+    await runSingleTarget(
       label: '(0,7)',
       target: (0, 7),
       trayPieces: [
@@ -317,7 +312,7 @@ void main() {
 
   // ── Target: (7,0) — bottom-left corner, single ──
   testWidgets('drag (7,0) — single', (tester) async {
-    await _runSingleTarget(
+    await runSingleTarget(
       label: '(7,0)',
       target: (7, 0),
       trayPieces: [
@@ -331,7 +326,7 @@ void main() {
 
   // ── Target: (7,7) — bottom-right corner, single ──
   testWidgets('drag (7,7) — single', (tester) async {
-    await _runSingleTarget(
+    await runSingleTarget(
       label: '(7,7)',
       target: (7, 7),
       trayPieces: [
@@ -345,7 +340,7 @@ void main() {
 
   // ── Target: (3,3) — center, v2 vertical ──
   testWidgets('drag (3,3) — v2', (tester) async {
-    await _runSingleTarget(
+    await runSingleTarget(
       label: '(3,3)',
       target: (3, 3),
       trayPieces: [

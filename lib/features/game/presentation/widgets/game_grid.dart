@@ -32,12 +32,11 @@ class GameGrid extends StatefulWidget {
   State<GameGrid> createState() => GameGridState();
 }
 
-class GameGridState extends State<GameGrid> with TickerProviderStateMixin {
+class GameGridState extends State<GameGrid> {
   int? hoverTrayIndex;
   int? hoverRow;
   int? hoverCol;
   bool hoverValid = false;
-  bool showClearFlash = false;
   final Set<CellOffset> _appearingCells = {};
 
   /// Must match the `padding` used by the grid container in [build].
@@ -45,36 +44,29 @@ class GameGridState extends State<GameGrid> with TickerProviderStateMixin {
 
   final GlobalKey _gridContainerKey = GlobalKey();
 
-  // --- Line-clear flash effect ---
-  late final AnimationController _clearFlashController;
-  late final Animation<double> _clearFlashAnimation;
+  /// In Block Blast, the bottom of the dragged piece is lifted above the touch point.
+  static const double liftOffset = 60.0;
 
-  /// Sürüklenen bloğun parmaktan kaç hücre yukarıda gösterileceği.
-  /// HEM render offset'i (game_screen'deki feedback) HEM ghost/snap hesaplaması
-  /// (computeGhostCell) bu sabiti kullanmalı; iki yerde farklı değer kullanmak
-  /// kalibrasyon kaymasına yol açar.
-  static const double liftCells = 1.2;
-
-  @override
-  void initState() {
-    super.initState();
-    _clearFlashController = AnimationController(
-      duration: const Duration(milliseconds: 100),
-      vsync: this,
-    );
-    _clearFlashAnimation = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(parent: _clearFlashController, curve: Curves.easeIn),
-    );
-  }
-
-  @override
-  void dispose() {
-    _clearFlashController.dispose();
-    super.dispose();
-  }
+  Set<int> _previewRows = {};
+  Set<int> _previewCols = {};
 
   /// Clears any active ghost preview. Safe to call when no preview is shown.
   void clearHover() => _clearHover();
+
+  /// Updates hover from a global drag offset (used by external hit areas).
+  void updateHoverFromGlobal(Offset globalOffset, int trayIndex) {
+    final (gr, gc) = _ghostPosition(globalOffset);
+    _updateHover(trayIndex, gr, gc);
+  }
+
+  /// Accepts a drop from a global drag offset. Returns whether placed.
+  bool acceptDropFromGlobal(Offset globalOffset, int trayIndex) {
+    final (gr, gc) = _ghostPosition(globalOffset);
+    final accepted = widget.onDrop(trayIndex, gr, gc);
+    if (!accepted) widget.onInvalidDrop(trayIndex);
+    _clearHover();
+    return accepted;
+  }
 
   @override
   void didUpdateWidget(covariant GameGrid oldWidget) {
@@ -101,27 +93,6 @@ class GameGridState extends State<GameGrid> with TickerProviderStateMixin {
       }
     }
 
-    // Line-clear flash + scale-down (Animation 3): 250ms timer.
-    if (widget.clearAnimationKey != oldWidget.clearAnimationKey &&
-        widget.clearedCells.isNotEmpty) {
-      if (widget.reduceMotion) {
-        showClearFlash = false;
-        return;
-      }
-
-      // --- Flash effect ---
-      final flashKey = widget.clearAnimationKey;
-      showClearFlash = true;
-      _clearFlashController.forward(from: 0).then((_) {
-        // Flash done — keep showClearFlash true so the scale-down/fade
-        // (Animation 3) still renders for the remaining 150 ms.
-      });
-      Future<void>.delayed(const Duration(milliseconds: 250), () {
-        if (mounted && widget.clearAnimationKey == flashKey) {
-          setState(() => showClearFlash = false);
-        }
-      });
-    }
   }
 
   // --- ghost position computation ---
@@ -138,52 +109,77 @@ class GameGridState extends State<GameGrid> with TickerProviderStateMixin {
     );
   }
 
-  /// Pure snap math used by [_ghostPosition]. Given a pointer position in the
-  /// grid container's *local* coordinate space (which already includes the
-  /// [padding] border), returns the grid (row, col) the block's anchor cell
-  /// should snap to. The block is rendered [liftCells] cells ABOVE the finger.
-  ///
-  /// Uses [liftCells] constant so the drag feedback offset in game_screen
-  /// and this function always stay in sync. The `.round()` method rounds to the
-  /// nearest integer (halfway cases round away from zero), ensuring consistent
-  /// snapping behavior without systematic floor bias.
+  /// Pure snap math used by [_ghostPosition]. Given the top-left position of the
+  /// floating piece in the grid container's local coordinate space,
+  /// returns the grid (row, col) the block's anchor cell snaps to.
   static (int, int) computeGhostCell(
     Offset local, {
     required double size,
     required int gridSize,
     required double padding,
   }) {
-    // The grid container has [padding] on every side, so the actual cell
-    // pitch is (size - 2*padding) / gridSize, and cell coordinates are offset
-    // by that padding inside the container's local space.
     final pitch = cellPitch(size, padding, gridSize);
-    // Block is rendered liftCells cells ABOVE the finger.
-    final offsetY = pitch * liftCells;
     final localX = local.dx - padding;
-    final localY = local.dy - padding - offsetY;
-    final ghostCol = (localX / pitch).round();
-    final ghostRow = (localY / pitch).round();
+    // Partial lift compensation: makes bottom rows reachable while keeping
+    // the ghost close to the lifted feedback.
+    final localY = local.dy - padding + (liftOffset * 0.6);
+    final ghostCol = (localX / pitch).round().clamp(0, gridSize - 1);
+    final ghostRow = (localY / pitch).round().clamp(0, gridSize - 1);
     return (ghostRow, ghostCol);
   }
 
-  /// The size of a single grid cell in logical pixels. This is the
-  /// *padding-aware* pitch (the cell area is [size] minus the [padding] border
-  /// on both sides), NOT the naive [size]/[gridSize]. Both the ghost preview
-  /// ([computeGhostCell]) and the drag feedback in [game_screen] must use this
-  /// exact value so the floating piece aligns with the snapped preview.
+  /// The size of a single grid cell in logical pixels.
   static double cellPitch(double size, double padding, int gridSize) =>
       (size - 2 * padding) / gridSize;
 
   void _updateHover(int trayIndex, int row, int col) {
     final validIndex = trayIndex >= 0 && trayIndex < widget.shapes.length;
+    final shape = validIndex ? widget.shapes[trayIndex] : null;
+    final isValid =
+        validIndex &&
+        shape != null &&
+        widget.engine.canPlace(shape, row, col);
+
+    final pRows = <int>{};
+    final pCols = <int>{};
+
+    if (isValid) {
+      final shapeCells = <CellOffset>{
+        for (final c in shape.cells) CellOffset(row + c.row, col + c.col),
+      };
+
+      for (var r = 0; r < widget.engine.size; r++) {
+        var full = true;
+        for (var c = 0; c < widget.engine.size; c++) {
+          if (widget.engine.grid[r][c] < 0 &&
+              !shapeCells.contains(CellOffset(r, c))) {
+            full = false;
+            break;
+          }
+        }
+        if (full) pRows.add(r);
+      }
+
+      for (var c = 0; c < widget.engine.size; c++) {
+        var full = true;
+        for (var r = 0; r < widget.engine.size; r++) {
+          if (widget.engine.grid[r][c] < 0 &&
+              !shapeCells.contains(CellOffset(r, c))) {
+            full = false;
+            break;
+          }
+        }
+        if (full) pCols.add(c);
+      }
+    }
+
     setState(() {
       hoverTrayIndex = trayIndex;
       hoverRow = row;
       hoverCol = col;
-      hoverValid =
-          validIndex &&
-          widget.shapes[trayIndex] != null &&
-          widget.engine.canPlace(widget.shapes[trayIndex]!, row, col);
+      hoverValid = isValid;
+      _previewRows = pRows;
+      _previewCols = pCols;
     });
   }
 
@@ -194,6 +190,8 @@ class GameGridState extends State<GameGrid> with TickerProviderStateMixin {
       hoverRow = null;
       hoverCol = null;
       hoverValid = false;
+      _previewRows = {};
+      _previewCols = {};
     });
   }
 
@@ -220,207 +218,205 @@ class GameGridState extends State<GameGrid> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     final cell = cellPitch(widget.size, gridPadding, widget.engine.size);
 
-    // Update previous-grid snapshot at the END of build so it reflects the
-    // current state (which will become "previous" by the next didUpdateWidget).
-    // We copy it AFTER rendering so didUpdateWidget still sees the old values
-    // for colour look-up.
     final children = <Widget>[
-      Container(
-        key: _gridContainerKey,
-        width: widget.size,
-        height: widget.size,
-        padding: const EdgeInsets.all(gridPadding),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: GridView.builder(
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: widget.engine.size * widget.engine.size,
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: widget.engine.size,
-          ),
-          itemBuilder: (context, index) {
-            final row = index ~/ widget.engine.size;
-            final col = index % widget.engine.size;
-            final value = widget.engine.grid[row][col];
-            final inPreview = _isInPreview(row, col);
-            final clearing =
-                showClearFlash &&
-                widget.clearedCells.contains(CellOffset(row, col));
-            final appearing = _appearingCells.contains(CellOffset(row, col));
-            return Semantics(
-              label: value >= 0
-                  ? 'Row ${row + 1}, column ${col + 1}, occupied'
-                  : inPreview
-                  ? (hoverValid
-                        ? 'Row ${row + 1}, column ${col + 1}, valid placement'
-                        : 'Row ${row + 1}, column ${col + 1}, invalid placement')
-                  : 'Row ${row + 1}, column ${col + 1}, empty',
-              child: DragTarget<int>(
-                onWillAcceptWithDetails: (details) {
-                  final (gr, gc) = _ghostPosition(details.offset);
-                  _updateHover(details.data, gr, gc);
-                  return hoverValid;
-                },
-                onMove: (details) {
-                  final (gr, gc) = _ghostPosition(details.offset);
-                  _updateHover(details.data, gr, gc);
-                },
-                onLeave: (_) => _clearHover(),
-                onAcceptWithDetails: (details) {
-                  final (gr, gc) = _ghostPosition(details.offset);
-                  final accepted = widget.onDrop(details.data, gr, gc);
-                  if (!accepted) widget.onInvalidDrop(details.data);
-                  _clearHover();
-                },
-                builder: (context, candidates, rejects) {
-                  Widget cellDecoration = Container(
-                    decoration: BoxDecoration(
-                      color: clearing
-                          ? Theme.of(context).colorScheme.tertiary
-                          : value >= 0
-                          ? blockColors[value]
-                          : inPreview
-                          ? (hoverValid
-                                ? Theme.of(
-                                    context,
-                                  ).colorScheme.primary.withValues(alpha: .42)
-                                : Theme.of(
-                                    context,
-                                  ).colorScheme.error.withValues(alpha: .42))
-                          : Theme.of(context).colorScheme.surface,
-                      border: inPreview
-                          ? Border.all(
-                              color: hoverValid
-                                  ? Theme.of(context).colorScheme.primary
-                                  : Theme.of(context).colorScheme.error,
-                              width: 1.5,
-                            )
-                          : Border.all(
-                              color: Colors.black.withValues(alpha: .08),
-                              width: 1,
-                            ),
-                      borderRadius: BorderRadius.circular(cell * .16),
+      DragTarget<int>(
+        onWillAcceptWithDetails: (details) => true,
+        onMove: (details) {
+          final (gr, gc) = _ghostPosition(details.offset);
+          _updateHover(details.data, gr, gc);
+        },
+        onLeave: (_) => _clearHover(),
+        onAcceptWithDetails: (details) {
+          final (gr, gc) = _ghostPosition(details.offset);
+          final accepted = widget.onDrop(details.data, gr, gc);
+          if (!accepted) widget.onInvalidDrop(details.data);
+          _clearHover();
+        },
+        builder: (context, candidates, rejects) {
+          return Container(
+            key: _gridContainerKey,
+            width: widget.size,
+            height: widget.size,
+            padding: const EdgeInsets.all(gridPadding),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.3),
+                width: 1.5,
+              ),
+            ),
+            child: GridView.builder(
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: widget.engine.size * widget.engine.size,
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: widget.engine.size,
                     ),
-                  );
+                    itemBuilder: (context, index) {
+                final row = index ~/ widget.engine.size;
+                final col = index % widget.engine.size;
+                final value = widget.engine.grid[row][col];
+                final inPreview = _isInPreview(row, col);
+                final willBlast = _previewRows.contains(row) || _previewCols.contains(col);
+                final appearing = _appearingCells.contains(CellOffset(row, col));
 
-                  // Animation 1: drop/settle for newly placed cells —
-                  // enhanced pop: scale 0.2→1.3→1.0 with overshoot.
-                  if (appearing && !widget.reduceMotion) {
-                    return TweenAnimationBuilder<double>(
-                      tween: Tween(begin: 0, end: 1),
-                      duration: const Duration(milliseconds: 130),
-                      curve: Curves.easeOutBack,
-                      builder: (context, val, _) {
-                        // Enhanced pop: overshoot then settle
-                        final scale = 0.2 + 1.1 * val;
-                        final opacity = val.clamp(0.0, 1.0);
-                        final offset = (1 - val) * 8.0;
-                        return Transform.translate(
-                          offset: Offset(0, offset),
-                          child: Transform.scale(
-                            scale: scale,
-                            child: Opacity(
-                              opacity: opacity,
-                              child: cellDecoration,
+                final isOccupied = value >= 0;
+                final shapeColor = isOccupied
+                    ? blockColors[value]
+                    : (hoverShape != null
+                        ? blockColors[hoverShape!.colorIndex]
+                        : Theme.of(context).colorScheme.primary);
+
+                Widget cellBody;
+
+                if (isOccupied) {
+                  // Premium 3D Candy/Jewel Block Tile
+                  cellBody = Stack(
+                    children: [
+                      Positioned.fill(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(cell * 0.20),
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Color.lerp(shapeColor, Colors.white, 0.30)!,
+                                shapeColor,
+                                Color.lerp(shapeColor, Colors.black, 0.28)!,
+                              ],
+                            ),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.26),
+                              width: 1.2,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: shapeColor.withValues(alpha: 0.35),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      // Glassy highlight on top
+                      Positioned(
+                        top: 1.5,
+                        left: 2.5,
+                        right: 2.5,
+                        height: cell * 0.35,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(cell * 0.14),
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.white.withValues(alpha: 0.55),
+                                Colors.white.withValues(alpha: 0.05),
+                              ],
                             ),
                           ),
-                        );
-                      },
-                    );
-                  }
-
-                  // Animation 3: line-clear flash with scale-down + fade.
-                  if (clearing && !widget.reduceMotion) {
-                    return AnimatedScale(
-                      scale: clearing ? 0.4 : 1,
-                      duration: const Duration(milliseconds: 130),
-                      curve: Curves.easeInOut,
-                      child: AnimatedOpacity(
-                        opacity: clearing ? 0 : 1,
-                        duration: const Duration(milliseconds: 110),
-                        child: cellDecoration,
+                        ),
                       ),
-                    );
-                  }
+                    ],
+                  );
+                } else if (inPreview) {
+                  // Hover Ghost Preview
+                  cellBody = DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: hoverValid
+                          ? shapeColor.withValues(alpha: 0.65)
+                          : Theme.of(context).colorScheme.error.withValues(alpha: 0.28),
+                      borderRadius: BorderRadius.circular(cell * 0.20),
+                      border: Border.all(
+                        color: hoverValid
+                            ? Colors.white.withValues(alpha: 0.8)
+                            : Theme.of(context).colorScheme.error,
+                        width: 1.8,
+                      ),
+                      boxShadow: hoverValid
+                          ? [
+                              BoxShadow(
+                                color: shapeColor.withValues(alpha: 0.6),
+                                blurRadius: 10,
+                              ),
+                            ]
+                          : null,
+                    ),
+                  );
+                } else if (willBlast) {
+                  // Upcoming Line Clear Blast Highlight
+                  cellBody = DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFD166).withValues(alpha: 0.22),
+                      borderRadius: BorderRadius.circular(cell * 0.18),
+                      border: Border.all(
+                        color: const Color(0xFFFFD166),
+                        width: 2.0,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFFFD166).withValues(alpha: 0.5),
+                          blurRadius: 8,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                  );
+                } else {
+                  // Empty Sunken Board Slot
+                  cellBody = DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF131422),
+                      borderRadius: BorderRadius.circular(cell * 0.18),
+                      border: Border.all(
+                        color: const Color(0xFF222438),
+                        width: 1.0,
+                      ),
+                    ),
+                  );
+                }
 
-                  return cellDecoration;
-                },
-              ),
-            );
-          },
-        ),
+                final Widget cellDecoration = Padding(
+                  padding: const EdgeInsets.all(1.0),
+                  child: cellBody,
+                );
+
+                // Newly placed cells settle in with a soft, premium pop.
+                if (appearing && !widget.reduceMotion) {
+                  return TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0, end: 1),
+                    duration: const Duration(milliseconds: 190),
+                    curve: Curves.easeOutCubic,
+                    builder: (context, val, _) {
+                      final pop = Curves.easeOutBack.transform(val);
+                      final scale = 0.82 + 0.18 * pop;
+                      final opacity = val.clamp(0.0, 1.0);
+                      final offset = (1 - val) * 5.0;
+                      return Transform.translate(
+                        offset: Offset(0, offset),
+                        child: Transform.scale(
+                          scale: scale,
+                          child: Opacity(
+                            opacity: opacity,
+                            child: cellDecoration,
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                }
+
+                return cellDecoration;
+              },
+            ),
+          );
+        },
       ),
     ];
 
-    // Flash overlay — white highlight on cleared cells during the first 100ms.
-    if (showClearFlash && !widget.reduceMotion) {
-      children.add(
-        AnimatedBuilder(
-          animation: _clearFlashAnimation,
-          builder: (context, _) {
-            final flashValue = (1.0 - _clearFlashAnimation.value).clamp(
-              0.0,
-              1.0,
-            );
-            return IgnorePointer(
-              child: SizedBox(
-                width: widget.size,
-                height: widget.size,
-                child: CustomPaint(
-                  painter: _FlashPainter(
-                    clearedCells: widget.clearedCells,
-                    cellSize: cell,
-                    gridPadding: gridPadding,
-                    flashAlpha: flashValue * 0.6,
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-      );
-    }
-
     return Stack(children: children);
   }
-}
-
-/// Custom painter that draws a white flash overlay on cleared cells.
-class _FlashPainter extends CustomPainter {
-  _FlashPainter({
-    required this.clearedCells,
-    required this.cellSize,
-    required this.gridPadding,
-    required this.flashAlpha,
-  });
-
-  final List<CellOffset> clearedCells;
-  final double cellSize;
-  final double gridPadding;
-  final double flashAlpha;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (flashAlpha <= 0) return;
-    final paint = Paint()..style = PaintingStyle.fill;
-    for (final cell in clearedCells) {
-      final rect = RRect.fromRectAndRadius(
-        Rect.fromLTWH(
-          gridPadding + cell.col * cellSize,
-          gridPadding + cell.row * cellSize,
-          cellSize,
-          cellSize,
-        ),
-        Radius.circular(cellSize * 0.16),
-      );
-      paint.color = Colors.white.withValues(alpha: flashAlpha);
-      canvas.drawRRect(rect, paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _FlashPainter old) =>
-      old.flashAlpha != flashAlpha;
 }

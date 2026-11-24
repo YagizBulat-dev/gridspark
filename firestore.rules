@@ -20,7 +20,7 @@ service cloud.firestore {
         && request.resource.data.score is int
         && request.resource.data.score >= 0
         && request.resource.data.score <= 10000000
-        && request.resource.data.mode in ['classic', 'timed', 'zen']
+        && request.resource.data.mode in ['classic', 'timed', 'rising']
         && request.resource.data.createdAt == request.time;
 
       allow update, delete: if false;

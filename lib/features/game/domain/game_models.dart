@@ -16,6 +16,7 @@ const snapshotTraySize = 3;
 const maxSnapshotScore = 10000000;
 const maxSnapshotMoves = 1000000;
 const maxTimedGameSeconds = 120;
+const maxTrayCells = 7; // Max cells per tray shape (artı 5'ten 7'ye)
 
 class CellOffset {
   const CellOffset(this.row, this.col);
@@ -113,6 +114,49 @@ abstract final class ShapeCatalog {
       CellOffset(2, 1),
       CellOffset(2, 2),
     ], colorIndex: 0),
+    // Bigger shapes for enhanced gameplay
+    BlockShape('h5', [
+      CellOffset(0, 0),
+      CellOffset(0, 1),
+      CellOffset(0, 2),
+      CellOffset(0, 3),
+      CellOffset(0, 4),
+    ], colorIndex: 3),
+    BlockShape('v5', [
+      CellOffset(0, 0),
+      CellOffset(1, 0),
+      CellOffset(2, 0),
+      CellOffset(3, 0),
+      CellOffset(4, 0),
+    ], colorIndex: 3),
+    BlockShape('cross', [
+      CellOffset(0, 1),
+      CellOffset(1, 0),
+      CellOffset(1, 1),
+      CellOffset(1, 2),
+      CellOffset(2, 1),
+    ], colorIndex: 7),
+    BlockShape('bigL', [
+      CellOffset(0, 0),
+      CellOffset(1, 0),
+      CellOffset(2, 0),
+      CellOffset(2, 1),
+      CellOffset(3, 1),
+    ], colorIndex: 6),
+    BlockShape('bigT', [
+      CellOffset(0, 0),
+      CellOffset(0, 1),
+      CellOffset(0, 2),
+      CellOffset(1, 1),
+      CellOffset(2, 1),
+    ], colorIndex: 6),
+    BlockShape('bigPlus', [
+      CellOffset(0, 1),
+      CellOffset(1, 0),
+      CellOffset(1, 1),
+      CellOffset(1, 2),
+      CellOffset(2, 1),
+    ], colorIndex: 7),
   ];
 
   static BlockShape? byId(String id) {

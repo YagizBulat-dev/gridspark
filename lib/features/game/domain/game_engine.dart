@@ -30,8 +30,9 @@ class GameEngine {
   }
 
   int _maxCellsForMode(GameMode mode) {
-    if (mode != GameMode.rising) return 5;
-    return risingDifficultyMaxCells[difficultyLevelForScore(score)];
+    if (mode == GameMode.rising) return risingDifficultyMaxCells[difficultyLevelForScore(score)];
+    // Use maxTrayCells constant for larger tray pieces (up to 7 cells)
+    return maxTrayCells;
   }
 
   void reset() {
@@ -167,6 +168,23 @@ class GameEngine {
 
   List<BlockShape> generateTray(GameMode mode) {
     return _blockGenerator.generateTray(mode, maxCells: _maxCellsForMode(mode));
+  }
+
+  /// Generates one random tray shape for [mode] without requiring that it
+  /// fits on the current board. Tray refills use this so the board can fill
+  /// up over time and the game can still end when nothing fits.
+  BlockShape? generateTrayShape(
+    GameMode mode, {
+    Iterable<String> excludingIds = const [],
+  }) {
+    final excluded = excludingIds.toSet();
+    final candidates = ShapeCatalog.all
+        .where((shape) => !excluded.contains(shape.id))
+        .where((shape) => ShapeCatalog.isAllowedInMode(shape, mode))
+        .where((shape) => shape.cells.length <= _maxCellsForMode(mode))
+        .toList()
+      ..shuffle(random);
+    return candidates.firstOrNull;
   }
 
   BlockShape? generatePlayableShape(

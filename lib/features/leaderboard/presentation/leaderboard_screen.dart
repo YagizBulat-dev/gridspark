@@ -5,6 +5,13 @@ import '../../../core/services/app_services.dart';
 import '../application/leaderboard_store.dart';
 import '../data/leaderboard_repository.dart';
 
+String _modeDisplayName(String mode) => switch (mode) {
+      'classic' => 'Classic',
+      'timed' => 'Time Attack',
+      'rising' => 'Rising Difficulty',
+      _ => mode.toUpperCase(),
+    };
+
 class LeaderboardScreen extends StatefulWidget {
   const LeaderboardScreen({super.key, required this.services});
 
@@ -134,7 +141,7 @@ class _ScoreList extends StatelessWidget {
           child: ListTile(
             leading: CircleAvatar(child: Text('${scoreIndex + 1}')),
             title: Text(score.name),
-            subtitle: Text(score.mode.toUpperCase()),
+            subtitle: Text(_modeDisplayName(score.mode)),
             trailing: Text(
               '${score.score}',
               style: Theme.of(

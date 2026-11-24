@@ -96,8 +96,8 @@ class AudioService {
     _musicPlayer = AudioPlayer();
     _currentTrack = track;
     try {
-      await _musicPlayer!.play(AssetSource(_musicAssetPath(track)));
       await _musicPlayer!.setReleaseMode(ReleaseMode.loop);
+      await _musicPlayer!.play(AssetSource(_musicAssetPath(track)));
     } catch (e) {
       // Empty placeholder files (0 bytes) cause AssetSource load errors.
       assert(() {

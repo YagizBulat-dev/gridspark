@@ -57,8 +57,10 @@ class GameStore {
   final lastMoveFeedback = Observable('Place a piece to begin');
   final lastClearedCells = ObservableList<CellOffset>();
   final lastPlacedCells = ObservableList<CellOffset>();
+  final lastPlacedColorIndex = Observable(-1);
   final comboPopupTrigger = Observable(0);
   final trayRefillCount = Observable(0);
+  final trayRefillSlot = Observable(-1);
   final tray = ObservableList<BlockShape?>();
 
   Timer? _timer;
@@ -81,6 +83,8 @@ class GameStore {
     lastMoveFeedback.value = 'Place a piece to begin';
     lastClearedCells.clear();
     lastPlacedCells.clear();
+    lastPlacedColorIndex.value = -1;
+    trayRefillSlot.value = -1;
     gridVersion.value++;
   }
 
@@ -132,6 +136,17 @@ class GameStore {
         return false;
       }
       tray.addAll(restoredTray);
+      // Heal legacy saves that stored empty slots after a placement: every
+      // slot must hold a piece now that refills are immediate.
+      for (var i = 0; i < tray.length; i++) {
+        if (tray[i] != null) continue;
+        tray[i] =
+            engine.generateTrayShape(
+              mode,
+              excludingIds: tray.whereType<BlockShape>().map((s) => s.id),
+            ) ??
+            engine.generateTray(mode).first;
+      }
       score.value = snapshot.score;
       streak.value = snapshot.streak;
       bestStreak.value = snapshot.bestStreak;
@@ -139,6 +154,9 @@ class GameStore {
       if (mode == GameMode.rising) {
         difficultyLevel.value =
             engine.difficultyLevelForScore(snapshot.score);
+      }
+      if (!engine.hasAnyMove(tray.whereType<BlockShape>())) {
+        _endGame();
       }
       gridVersion.value++;
       return true;
@@ -215,7 +233,19 @@ class GameStore {
       }
       final streakBonus = result.lines > 0 ? previousStreak * 150 : 0;
       if (streakBonus > 0) engine.addScoreBonus(streakBonus);
-      tray[trayIndex] = null;
+      lastPlacedColorIndex.value = shape.colorIndex;
+      // Replace the placed piece immediately so a new block arrives at once.
+      // The refill is random (not guaranteed to fit) so the board can fill up
+      // and the game can still end when none of the three pieces fit.
+      final otherIds = tray.whereType<BlockShape>().map((s) => s.id);
+      final newPiece =
+          engine.generateTrayShape(mode, excludingIds: otherIds) ??
+          engine.generateTrayShape(mode) ??
+          engine.generateTray(mode).first;
+      tray[trayIndex] = newPiece;
+      trayRefillSlot.value = trayIndex;
+      trayRefillCount.value++;
+
       score.value = engine.score;
       if (mode == GameMode.rising) {
         final newLevel = engine.difficultyLevelForScore(engine.score);
@@ -237,20 +267,8 @@ class GameStore {
                 '${streak.value}x streak${streakBonus > 0 ? ' • +$streakBonus bonus' : ''}'
           : 'No clear • streak reset';
       gridVersion.value++;
-      if (tray.every((s) => s == null)) {
-        // All 3 slots used — generate 3 new blocks.
-        tray
-          ..clear()
-          ..addAll(engine.generateTray(mode));
-        trayRefillCount.value++;
-        if (!engine.hasAnyMove(tray)) {
-          _endGame();
-        }
-      } else {
-        // Some slots still have blocks — check if any can be placed.
-        if (!engine.hasAnyMove(tray.whereType<BlockShape>())) {
-          _endGame();
-        }
+      if (!engine.hasAnyMove(tray.whereType<BlockShape>())) {
+        _endGame();
       }
     });
     final progress = onProgress;

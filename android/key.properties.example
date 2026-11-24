@@ -1,0 +1,6 @@
+# Example signing configuration for Google Play release build
+# Copy this file to android/key.properties and fill with your actual keystore details
+storePassword=your_keystore_password
+keyPassword=your_key_password
+keyAlias=your_key_alias
+storeFile=../upload-keystore.jks

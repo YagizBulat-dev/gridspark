@@ -259,7 +259,7 @@ class _GameScreenState extends State<GameScreen>
       child: Stack(
         children: [
           Padding(
-            padding: EdgeInsets.fromLTRB(8, 4, 8, 12),
+            padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final gridSize = constraints.maxWidth;
@@ -296,6 +296,11 @@ class _GameScreenState extends State<GameScreen>
                           _Stat(
                             label: 'TIME',
                             value: '${store.secondsLeft.value}s',
+                          ),
+                        if (widget.mode == GameMode.rising)
+                          _Stat(
+                            label: 'LEVEL',
+                            value: 'L${store.difficultyLevel.value + 1}',
                           ),
                         _Stat(
                           label: 'BEST',
@@ -365,15 +370,27 @@ class _GameScreenState extends State<GameScreen>
                         ],
                       ),
                     ),
-                    const Spacer(),
-                    Text(
-                      'DRAG A PIECE TO PLACE',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.labelMedium,
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      height: trayHeight,
+                    Expanded(
+                      child: DragTarget<int>(
+                        onWillAcceptWithDetails: (_) => true,
+                        onMove: (d) => _gridKey.currentState
+                            ?.updateHoverFromGlobal(d.offset, d.data),
+                        onLeave: (_) => _gridKey.currentState?.clearHover(),
+                        onAcceptWithDetails: (d) => _gridKey.currentState
+                            ?.acceptDropFromGlobal(d.offset, d.data),
+                        builder: (context, _, __) => Column(
+                          children: [
+                            const Spacer(),
+                            Text(
+                              'DRAG A PIECE TO PLACE',
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelMedium,
+                            ),
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              height: trayHeight,
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
@@ -424,6 +441,8 @@ child: store.tray[i] == null
                                       child: _TraySlotAppear(
                                         slotIndex: i,
                                         refillTrigger: trayRefill,
+                                        refillSlot:
+                                            store.trayRefillSlot.value,
                                         reduceMotion: reduceMotion,
                                         child: AnimatedOpacity(
                                           duration: gameAnimationDuration(
@@ -433,30 +452,39 @@ child: store.tray[i] == null
                                           opacity: store.isPaused ? .35 : 1,
 child: Draggable<int>(
   data: i,
-  dragAnchorStrategy: pointerDragAnchorStrategy,
+  dragAnchorStrategy: (draggable, context, position) {
+    final shape = store.tray[i]!;
+    final feedbackWidth = shape.width * gridPitch;
+    final feedbackHeight = shape.height * gridPitch;
+    return Offset(
+      feedbackWidth / 2,
+      feedbackHeight + GameGridState.liftOffset,
+    );
+  },
   feedback: IgnorePointer(
     child: Material(
       color: Colors.transparent,
       child: BlockShapeView(
         shape: store.tray[i]!,
         cellSize: gridPitch,
+        isDragging: true,
       ),
     ),
   ),
-  feedbackOffset: Offset(
-    0,
-    -gridPitch * GameGridState.liftCells,
-  ),
                                             childWhenDragging: Opacity(
                                               opacity: .18,
+                                              child: Center(
+                                                child: BlockShapeView(
+                                                  shape: store.tray[i]!,
+                                                  cellSize: trayCellSize,
+                                                ),
+                                              ),
+                                            ),
+                                            child: Center(
                                               child: BlockShapeView(
                                                 shape: store.tray[i]!,
                                                 cellSize: trayCellSize,
                                               ),
-                                            ),
-                                            child: BlockShapeView(
-                                              shape: store.tray[i]!,
-                                              cellSize: trayCellSize,
                                             ),
                                             onDraggableCanceled:
                                                 (velocity, offset) {
@@ -477,6 +505,10 @@ child: Draggable<int>(
                             ),
                             ),
                         ],
+                      ),
+                    ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -611,8 +643,8 @@ child: Draggable<int>(
   }
 
   /// Geçersiz bir bırakmada (normalde onWillAccept bunu önler; yedek güvence)
-/// haptic + tray shake tetikler.
-void _handleInvalidDrop(int trayIndex) {
+  /// haptic + tray shake tetikler.
+  void _handleInvalidDrop(int trayIndex) {
   if (widget.services.settings.haptics) {
     HapticFeedback.mediumImpact();
   }
@@ -627,13 +659,53 @@ void _handleInvalidDrop(int trayIndex) {
     _trayShakeController.forward(from: 0);
   }
 
+  /// Prompts the user for a nickname (max 24 chars) before saving.
+  /// Returns the sanitized nickname, or 'Player' if the dialog is dismissed.
+  Future<String> _promptNickname() async {
+    final controller = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Enter your name'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 24,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(
+            hintText: 'Player',
+            counterText: '',
+          ),
+          onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, ''),
+            child: const Text('Skip'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    return (result == null || result.isEmpty) ? 'Player' : result;
+  }
+
   Future<void> _showGameOver() async {
     await store.clearSnapshot();
+    if (!mounted) return;
+    final nickname = await _promptNickname();
+    if (!mounted) return;
     String? saveMessage;
     try {
       saveMessage = (await widget.services.leaderboard.submit(
         store.score.value,
         widget.mode.name,
+        nickname: nickname,
       )).message;
     } catch (_) {
       saveMessage = 'Score could not be saved. Please try again later.';
@@ -771,11 +843,14 @@ class _GameOverPanel extends StatelessWidget {
                         ),
                       ],
                     ),
-child: Icon(
-                    Icons.auto_awesome,
-                    size: 42,
-                    color: Color(0xFF7C5CFF),
-                  ),
+                    child: Padding(
+                      padding: EdgeInsets.all(14),
+                      child: Icon(
+                        Icons.auto_awesome,
+                        size: 42,
+                        color: Color(0xFF7C5CFF),
+                      ),
+                    ),
                   ),
                 ),
 
@@ -1019,10 +1094,12 @@ class _AnimatedStat extends StatelessWidget {
     required this.label,
     required this.value,
     required this.reduceMotion,
+    this.color,
   });
   final String label;
   final int value;
   final bool reduceMotion;
+  final Color? color;
   @override
   Widget build(BuildContext context) => Column(
     children: [
@@ -1039,11 +1116,39 @@ class _AnimatedStat extends StatelessWidget {
           key: ValueKey(value),
           style: Theme.of(
             context,
-          ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+          ).textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: color ?? Theme.of(context).colorScheme.onSurface,
+          ),
         ),
       ),
     ],
   );
+}
+
+class _RefreshButton extends StatelessWidget {
+  const _RefreshButton({
+    required this.onPressed,
+    required this.icon,
+    required this.color,
+  });
+  final VoidCallback onPressed;
+  final IconData icon;
+  final Color color;
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Material(
+      color: cs.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onPressed,
+        padding: const EdgeInsets.all(12),
+        child: Icon(icon, color: color, size: 28),
+      ),
+    );
+  }
 }
 
 class _Stat extends StatelessWidget {
@@ -1056,9 +1161,7 @@ class _Stat extends StatelessWidget {
       Text(label, style: Theme.of(context).textTheme.labelSmall),
       Text(
         value,
-        style: Theme.of(
-          context,
-        ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+        style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
       ),
     ],
   );
@@ -1185,18 +1288,20 @@ class _ComboPopupState extends State<_ComboPopup>
   }
 }
 
-/// Animation 5: Tray staggered appear — each slot scales in with a delay
-/// based on its index after a tray refill.
+/// Animation 5: Tray piece drop-in — the newly refilled slot scales and
+/// slides into place while the other two slots stay still.
 class _TraySlotAppear extends StatefulWidget {
   const _TraySlotAppear({
     required this.slotIndex,
     required this.refillTrigger,
+    required this.refillSlot,
     required this.reduceMotion,
     required this.child,
   });
 
   final int slotIndex;
   final int refillTrigger;
+  final int refillSlot;
   final bool reduceMotion;
   final Widget child;
 
@@ -1209,52 +1314,34 @@ class _TraySlotAppearState extends State<_TraySlotAppear>
   late AnimationController _controller;
   late Animation<double> _scaleAnim;
   late Animation<double> _opacityAnim;
+  late Animation<double> _offsetAnim;
   int _lastRefillTrigger = 0;
 
   @override
   void initState() {
     super.initState();
     _lastRefillTrigger = widget.refillTrigger;
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 280),
+    );
     if (widget.reduceMotion) {
-      _controller = AnimationController(vsync: this);
       _scaleAnim = const AlwaysStoppedAnimation(1);
       _opacityAnim = const AlwaysStoppedAnimation(1);
+      _offsetAnim = const AlwaysStoppedAnimation(0);
     } else {
-      final delay = Duration(milliseconds: widget.slotIndex * 60);
-      final duration = const Duration(milliseconds: 150);
-      _controller = AnimationController(
-        vsync: this,
-        duration: delay + duration,
+      _scaleAnim = Tween<double>(begin: 0.72, end: 1.0).animate(
+        CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
       );
-      // Scale from 0.3 to 1, opacity from 0 to 1, after the delay.
-      final startFraction =
-          delay.inMilliseconds / (delay + duration).inMilliseconds;
-      // The constant ("hold") portion has zero duration when the delay is
-      // zero (slot 0). TweenSequenceItem requires a strictly positive weight,
-      // so floor it (the tiny weight is effectively invisible after
-      // normalization). The same applies to the animation portion.
-      _scaleAnim = TweenSequence<double>([
-        TweenSequenceItem(
-          tween: ConstantTween(0.3),
-          weight: math.max(0.01, startFraction * 100),
+      _opacityAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
+        CurvedAnimation(
+          parent: _controller,
+          curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
         ),
-        TweenSequenceItem(
-          tween: Tween(begin: 0.3, end: 1.0),
-          weight: math.max(0.01, (1 - startFraction) * 100),
-        ),
-      ]).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
-      _opacityAnim = TweenSequence<double>([
-        TweenSequenceItem(
-          tween: ConstantTween(0.0),
-          weight: math.max(0.01, startFraction * 100),
-        ),
-        TweenSequenceItem(
-          tween: Tween(begin: 0.0, end: 1.0),
-          weight: math.max(0.01, (1 - startFraction) * 100),
-        ),
-      ]).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
-      // Start the appear animation immediately so the block fades/scales in
-      // instead of being stuck at the t=0 opacity (0.0) / scale (0.3).
+      );
+      _offsetAnim = Tween<double>(begin: -18.0, end: 0.0).animate(
+        CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
+      );
       _controller.forward();
     }
   }
@@ -1264,10 +1351,10 @@ class _TraySlotAppearState extends State<_TraySlotAppear>
     super.didUpdateWidget(oldWidget);
     if (widget.refillTrigger != _lastRefillTrigger) {
       _lastRefillTrigger = widget.refillTrigger;
-      // Replay the appear animation on refill. Use isAnimating (not
-      // isCompleted) so a refill that arrives while the initial animation is
-      // still running also re-triggers instead of being silently skipped.
-      if (!widget.reduceMotion && !_controller.isAnimating) {
+      // Only the slot that actually received a new piece replays the drop-in.
+      if (!widget.reduceMotion &&
+          widget.refillSlot == widget.slotIndex &&
+          widget.refillSlot >= 0) {
         _controller.forward(from: 0);
       }
     }
@@ -1282,9 +1369,12 @@ class _TraySlotAppearState extends State<_TraySlotAppear>
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: _controller,
-    builder: (context, child) => Transform.scale(
-      scale: _scaleAnim.value,
-      child: Opacity(opacity: _opacityAnim.value, child: child),
+    builder: (context, child) => Transform.translate(
+      offset: Offset(0, _offsetAnim.value),
+      child: Transform.scale(
+        scale: _scaleAnim.value,
+        child: Opacity(opacity: _opacityAnim.value, child: child),
+      ),
     ),
     child: widget.child,
   );
