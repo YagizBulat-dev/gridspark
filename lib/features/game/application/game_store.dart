@@ -6,6 +6,7 @@ import '../data/game_snapshot_repository.dart';
 import '../domain/analytics/game_analytics.dart';
 import '../domain/analytics/game_session.dart';
 import '../domain/difficulty/adaptive_difficulty.dart';
+import '../domain/generation/generation_context.dart';
 import '../domain/game_engine.dart';
 import '../domain/game_models.dart';
 
@@ -30,7 +31,12 @@ class GameStore {
     AdaptiveDifficultyManager? adaptiveDifficulty,
     double baselineAverageScore = 0,
     double baselineLossRate = 0,
-  }) : engine = engine ?? GameEngine(),
+    GenerationPolicy generationPolicy = GenerationPolicy.random,
+    List<String> generationRecipe = const <String>[],
+  }) : engine = engine ?? GameEngine(
+          generationPolicy: generationPolicy,
+          generationRecipe: generationRecipe,
+        ),
        _periodicTimer = periodicTimer ?? Timer.periodic,
        _analytics = analytics ??
            GameAnalyticsTracker(mode: mode, wasReplay: wasReplay),

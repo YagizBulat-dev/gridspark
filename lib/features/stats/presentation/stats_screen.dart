@@ -5,6 +5,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/arcade_widgets.dart';
 import '../../game/domain/analytics/achievements.dart';
+import '../../game/domain/experiments/ab_testing.dart';
 import '../../menu/presentation/app_nav.dart';
 
 class StatsScreen extends StatelessWidget {
@@ -172,12 +173,91 @@ class StatsScreen extends StatelessWidget {
                         ],
                       ),
                     ),
+                    const SizedBox(height: 16),
+                    _ExperimentCard(services: services),
                   ],
                 ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ExperimentCard extends StatelessWidget {
+  const _ExperimentCard({required this.services});
+  final AppServices services;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!generationExperiment.enabled) return const SizedBox.shrink();
+    final assignment =
+        services.experiments.assignment(generationExperiment.id);
+    final variant = assignment == null
+        ? null
+        : generationExperiment.variant(assignment.variantId);
+    final report = services.experiments.report(generationExperiment.id);
+
+    return GlassPanel(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SectionLabel(
+            'A/B Deneyi',
+            icon: Icons.science_rounded,
+            color: AppColors.violet,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            generationExperiment.name,
+            style: AppTheme.jakarta(14),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            variant == null
+                ? 'Henüz bir varyat atanmadı — bir oyun oyna.'
+                : 'Varyantın: ${variant.name}',
+            style: AppTheme.grotesk(
+              12,
+              color: AppColors.onSurfaceVariant,
+            ),
+          ),
+          if (report.variants.isEmpty)
+            const Padding(
+              padding: EdgeInsets.only(top: 10),
+              child: Text(
+                'Sonuç karşılaştırması için oyun verisi bekleniyor.',
+                style: TextStyle(color: AppColors.onSurfaceVariant, fontSize: 11),
+              ),
+            )
+          else
+            for (final stats in report.variants)
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        generationExperiment.variant(stats.variantId)?.name ??
+                            stats.variantId,
+                        style: AppTheme.jakarta(12),
+                      ),
+                    ),
+                    Text(
+                      '${stats.games} oyun • ${stats.averageScore.round()} puan • '
+                      '%${(stats.lossRate * 100).round()} kayıp',
+                      style: AppTheme.grotesk(
+                        11,
+                        color: AppColors.cyan,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+        ],
       ),
     );
   }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -15,6 +16,8 @@ import '../../../core/theme/arcade_widgets.dart';
 import '../application/game_store.dart';
 import '../domain/analytics/game_session.dart';
 import '../domain/difficulty/adaptive_difficulty.dart';
+import '../domain/experiments/ab_testing.dart';
+import '../domain/generation/generation_context.dart';
 import '../domain/game_models.dart';
 import 'effects/effects_overlay.dart';
 import 'game_animation.dart';
@@ -62,6 +65,7 @@ class _GameScreenState extends State<GameScreen>
   late final Animation<double> _gameOverDarken;
   bool _wasGameOver = false;
   bool _nextSessionIsReplay = false;
+  ExperimentAssignment? _currentAssignment;
 
   @override
   void initState() {
@@ -137,6 +141,16 @@ class _GameScreenState extends State<GameScreen>
       stats: services.analytics.currentStats(),
       dailyStreak: services.dailyStreak.current,
     );
+    final assignment = _currentAssignment;
+    if (assignment != null) {
+      await services.experiments.recordOutcome(
+        ExperimentOutcome(
+          experimentId: assignment.experimentId,
+          variantId: assignment.variantId,
+          session: session,
+        ),
+      );
+    }
     if (!mounted || unlocked.isEmpty) return;
     services.audio.playSfx(Sfx.achievement);
     ScaffoldMessenger.of(context).showSnackBar(
@@ -151,9 +165,24 @@ class _GameScreenState extends State<GameScreen>
     }
     _disposers.clear();
 
-    final baseline = widget.services.analytics.currentStats();
+    final services = widget.services;
+    final baseline = services.analytics.currentStats();
+    ExperimentVariant? variant;
+    if (generationExperiment.enabled) {
+      final repo = services.experiments;
+      _currentAssignment =
+          repo.assignment(generationExperiment.id) ??
+          const ABTestingEngine().assign(
+            generationExperiment,
+            repo.bucketKey,
+          );
+      if (repo.assignment(generationExperiment.id) == null) {
+        unawaited(repo.saveAssignment(_currentAssignment!));
+      }
+      variant = generationExperiment.variant(_currentAssignment!.variantId);
+    }
     final useAdaptive = widget.mode == GameMode.rising &&
-        widget.services.settings.adaptiveDifficulty;
+        services.settings.adaptiveDifficulty;
     store = GameStore(
       widget.mode,
       snapshot: widget.services.gameSnapshots.load(widget.mode),
@@ -163,9 +192,15 @@ class _GameScreenState extends State<GameScreen>
       onProgress: widget.services.dailyChallenges.record,
       onSessionEnd: _onSessionEnd,
       wasReplay: _nextSessionIsReplay,
-      adaptiveDifficulty: useAdaptive ? AdaptiveDifficultyManager() : null,
+      adaptiveDifficulty: useAdaptive
+          ? AdaptiveDifficultyManager(
+              levels: variant?.adaptiveCellCaps ?? const [2, 4, 5, 7],
+            )
+          : null,
       baselineAverageScore: baseline.averageScore,
       baselineLossRate: baseline.firstTenLossRate,
+      generationPolicy: variant?.generationPolicy ?? GenerationPolicy.random,
+      generationRecipe: variant?.recipe ?? const <String>[],
     );
     _nextSessionIsReplay = false;
     _setupReactions();

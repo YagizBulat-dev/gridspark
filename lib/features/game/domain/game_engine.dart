@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'game_models.dart';
 import 'generation/generation_context.dart';
+import 'generation/generation_strategies.dart';
 import 'generation/piece_generation_system.dart';
 import 'generation/valid_move.dart';
 
@@ -10,8 +11,18 @@ class GameEngine {
     this.size = 8,
     Random? random,
     PieceGenerationSystem? pieceGenerator,
+    GenerationPolicy generationPolicy = GenerationPolicy.random,
+    List<String> generationRecipe = const <String>[],
   })  : random = random ?? Random(),
-        _pieceGenerator = pieceGenerator ?? PieceGenerationSystem(random: random) {
+        _pieceGenerator =
+            pieceGenerator ??
+            PieceGenerationSystem(
+              random: random,
+              strategy: strategyFor(
+                generationPolicy,
+                recipe: generationRecipe,
+              ),
+            ) {
     grid = List.generate(size, (_) => List<int>.filled(size, -1));
   }
 
