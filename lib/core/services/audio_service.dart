@@ -71,8 +71,8 @@ class AudioService {
       }
       await player.play(AssetSource(path));
     } catch (e) {
-      // Empty placeholder files (0 bytes) cause AssetSource load errors.
-      // Real audio files will resolve this — log for debugging in the meantime.
+      // Log decode/load failures in debug builds. Assets are generated PCM
+      // WAV files, so a failure here means a missing or corrupted bundle.
       assert(() {
         debugPrint('AudioService.playSfx failed: $sfx\nError: $e');
         return true;
@@ -99,7 +99,8 @@ class AudioService {
       await _musicPlayer!.setReleaseMode(ReleaseMode.loop);
       await _musicPlayer!.play(AssetSource(_musicAssetPath(track)));
     } catch (e) {
-      // Empty placeholder files (0 bytes) cause AssetSource load errors.
+      // Log decode/load failures in debug builds. Assets are generated PCM
+      // WAV files, so a failure here means a missing or corrupted bundle.
       assert(() {
         debugPrint('AudioService.playMusic failed: $track\nError: $e');
         return true;
@@ -117,19 +118,19 @@ class AudioService {
 }
 
 String _sfxAssetPath(Sfx sfx) => switch (sfx) {
-  Sfx.place => 'sounds/sfx/place.mp3',
-  Sfx.invalid => 'sounds/sfx/invalid.mp3',
-  Sfx.clear => 'sounds/sfx/clear.mp3',
-  Sfx.combo => 'sounds/sfx/combo.mp3',
-  Sfx.trayRefill => 'sounds/sfx/tray_refill.mp3',
-  Sfx.gameOver => 'sounds/sfx/game_over.mp3',
-  Sfx.buttonClick => 'sounds/sfx/button_click.mp3',
-  Sfx.achievement => 'sounds/sfx/achievement.mp3',
+  Sfx.place => 'sounds/sfx/place.wav',
+  Sfx.invalid => 'sounds/sfx/invalid.wav',
+  Sfx.clear => 'sounds/sfx/clear.wav',
+  Sfx.combo => 'sounds/sfx/combo.wav',
+  Sfx.trayRefill => 'sounds/sfx/tray_refill.wav',
+  Sfx.gameOver => 'sounds/sfx/game_over.wav',
+  Sfx.buttonClick => 'sounds/sfx/button_click.wav',
+  Sfx.achievement => 'sounds/sfx/achievement.wav',
 };
 
 String _musicAssetPath(MusicTrack track) => switch (track) {
-  MusicTrack.menu => 'sounds/music/menu.mp3',
-  MusicTrack.classic => 'sounds/music/classic.mp3',
-  MusicTrack.timed => 'sounds/music/timed.mp3',
-  MusicTrack.rising => 'sounds/music/rising.mp3',
+  MusicTrack.menu => 'sounds/music/menu.wav',
+  MusicTrack.classic => 'sounds/music/classic.wav',
+  MusicTrack.timed => 'sounds/music/timed.wav',
+  MusicTrack.rising => 'sounds/music/rising.wav',
 };
