@@ -54,7 +54,9 @@ class GameStore {
       if (snapshot != null) _discardInvalidSnapshot();
       _startFresh(initialTray: initialTray, resetEngine: snapshot != null);
     }
-    if (mode == GameMode.timed) _ensureTimer();
+    // The clock runs in every mode: timed counts down, the untimed modes use
+    // it as a running stopwatch so the header can show the elapsed time.
+    _ensureTimer();
   }
 
   final GameMode mode;
@@ -73,6 +75,10 @@ class GameStore {
   final gridVersion = Observable(0);
   final score = Observable(0);
   final secondsLeft = Observable(120);
+
+  /// Whole seconds played in the current run (all modes). Keeps ticking while
+  /// the game is live so untimed modes can show a running clock.
+  final elapsedSeconds = Observable(0);
   final isGameOver = Observable(false);
   final manuallyPaused = Observable(false);
   final lifecyclePaused = Observable(false);
@@ -97,6 +103,7 @@ class GameStore {
 
   Timer? _timer;
   int _timerGeneration = 0;
+  DateTime _lastTickAt = DateTime.now();
   bool _disposed = false;
   bool _snapshotCleared = false;
   Future<void> _snapshotWriteChain = Future<void>.value();
@@ -113,6 +120,7 @@ class GameStore {
     score.value = 0;
     streak.value = 0;
     _movesSinceClear = 0;
+    elapsedSeconds.value = 0;
     bestStreak.value = 0;
     difficultyLevel.value = mode == GameMode.rising ? 0 : -1;
     lastMoveFeedback.value = 'Place a piece to begin';
@@ -228,20 +236,29 @@ class GameStore {
   }
 
   void _ensureTimer() {
-    if (_disposed ||
-        mode != GameMode.timed ||
-        isPaused ||
-        isGameOver.value ||
-        _timer?.isActive == true) {
+    if (_disposed || isPaused || isGameOver.value || _timer?.isActive == true) {
       return;
     }
     final generation = ++_timerGeneration;
+    _lastTickAt = DateTime.now();
     _timer = _periodicTimer(const Duration(seconds: 1), (_) {
       if (_disposed || generation != _timerGeneration || isPaused) return;
+      // Measure real elapsed time instead of trusting the callback cadence:
+      // if the platform stalls the isolate, one late callback still has to
+      // account for every second that actually passed.
+      final now = DateTime.now();
+      var seconds = now.difference(_lastTickAt).inSeconds;
+      if (seconds < 1) seconds = 1;
+      _lastTickAt = now;
       runInAction(() {
-        if (secondsLeft.value > 0) secondsLeft.value--;
-        if (secondsLeft.value <= 0) {
-          _endGame(GameEndReason.timeUp, fatalShapeId: _stuckShapeId());
+        for (var i = 0; i < seconds; i++) {
+          elapsedSeconds.value++;
+          if (mode != GameMode.timed) continue;
+          if (secondsLeft.value > 0) secondsLeft.value--;
+          if (secondsLeft.value <= 0) {
+            _endGame(GameEndReason.timeUp, fatalShapeId: _stuckShapeId());
+            break;
+          }
         }
       });
     });

@@ -27,6 +27,58 @@ void main() {
       expect(store.secondsLeft.value, 0);
     });
 
+    test('clock ticks in every mode, not only after a placement', () {
+      final timedTimers = _TimerHarness();
+      final timed = GameStore(
+        GameMode.timed,
+        periodicTimer: timedTimers.create,
+        initialSeconds: 30,
+      );
+      for (var i = 0; i < 3; i++) {
+        timedTimers.tick();
+      }
+      expect(timed.secondsLeft.value, 27);
+      expect(timed.elapsedSeconds.value, 3);
+
+      final classicTimers = _TimerHarness();
+      final classic = GameStore(
+        GameMode.classic,
+        periodicTimer: classicTimers.create,
+      );
+      for (var i = 0; i < 4; i++) {
+        classicTimers.tick();
+      }
+      expect(classic.secondsLeft.value, 120);
+      expect(classic.elapsedSeconds.value, 4);
+
+      final risingTimers = _TimerHarness();
+      final rising = GameStore(
+        GameMode.rising,
+        periodicTimer: risingTimers.create,
+      );
+      for (var i = 0; i < 2; i++) {
+        risingTimers.tick();
+      }
+      expect(rising.secondsLeft.value, 120);
+      expect(rising.elapsedSeconds.value, 2);
+    });
+
+    test('manual pause freezes the clock in untimed modes too', () {
+      final timers = _TimerHarness();
+      final store = GameStore(GameMode.classic, periodicTimer: timers.create);
+
+      timers.tick();
+      expect(store.elapsedSeconds.value, 1);
+
+      store.toggleManualPause();
+      timers.tick(); // cancelled timer must not advance the clock
+      expect(store.elapsedSeconds.value, 1);
+
+      store.toggleManualPause();
+      timers.tick();
+      expect(store.elapsedSeconds.value, 2);
+    });
+
     test('manual pause cancels timer and resume creates one safe timer', () {
       final timers = _TimerHarness();
       final store = GameStore(

@@ -282,18 +282,35 @@ class _GameScreenState extends State<GameScreen>
             ArcadeHeader(
               subtitle: widget.mode.displayName,
               showBack: true,
-              trailing: Observer(
-                builder: (_) => ArcadeIconButton(
-                  tooltip: store.manuallyPaused.value
-                      ? 'Oyuna devam et'
-                      : 'Duraklat',
-                  onTap: store.isGameOver.value
-                      ? null
-                      : store.toggleManualPause,
-                  icon: store.manuallyPaused.value
-                      ? Icons.play_arrow_rounded
-                      : Icons.pause_rounded,
-                ),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Timed mode already shows a big countdown in the stat row;
+                  // the untimed modes get a running stopwatch here instead.
+                  if (widget.mode != GameMode.timed) ...[
+                    Observer(
+                      builder: (_) => StatPill(
+                        text: _formatClock(store.elapsedSeconds.value),
+                        icon: Icons.timer_outlined,
+                        color: AppColors.cyan,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  Observer(
+                    builder: (_) => ArcadeIconButton(
+                      tooltip: store.manuallyPaused.value
+                          ? 'Oyuna devam et'
+                          : 'Duraklat',
+                      onTap: store.isGameOver.value
+                          ? null
+                          : store.toggleManualPause,
+                      icon: store.manuallyPaused.value
+                          ? Icons.play_arrow_rounded
+                          : Icons.pause_rounded,
+                    ),
+                  ),
+                ],
               ),
             ),
             Expanded(child: Observer(builder: _buildGame)),
@@ -308,6 +325,12 @@ class _GameScreenState extends State<GameScreen>
     final trayRefill = store.trayRefillCount.value;
     final comboTrigger = store.comboPopupTrigger.value;
     final currentStreak = store.streak.value;
+    // Read the clock (and pause state) here, inside the tracked build, so the
+    // Observer actually subscribes to them. Reads that only happen inside the
+    // LayoutBuilder below run during layout — outside the MobX reaction — and
+    // would leave the countdown frozen until some other observable changed.
+    final secondsLeft = store.secondsLeft.value;
+    final paused = store.isPaused;
     final reduceMotion = widget.services.settings.reduceMotion;
 
     // --- Detect combo zoom trigger ---
@@ -384,10 +407,7 @@ class _GameScreenState extends State<GameScreen>
                           ),
                           _Stat(label: 'SERİ', value: '${store.streak.value}x'),
                           if (widget.mode == GameMode.timed)
-                            _Stat(
-                              label: 'SÜRE',
-                              value: '${store.secondsLeft.value}s',
-                            ),
+                            _Stat(label: 'SÜRE', value: '${secondsLeft}s'),
                           if (widget.mode == GameMode.rising)
                             _Stat(
                               label: 'SEVİYE',
@@ -576,7 +596,7 @@ class _GameScreenState extends State<GameScreen>
                                                               milliseconds: 150,
                                                             ),
                                                           ),
-                                                      opacity: store.isPaused
+                                                      opacity: paused
                                                           ? .35
                                                           : 1,
                                                       child: Draggable<int>(
@@ -771,6 +791,14 @@ class _GameScreenState extends State<GameScreen>
         ],
       ),
     );
+  }
+
+  /// `mm:ss` for the running stopwatch shown in untimed modes.
+  static String _formatClock(int totalSeconds) {
+    final clamped = totalSeconds < 0 ? 0 : totalSeconds;
+    final minutes = (clamped ~/ 60).toString().padLeft(2, '0');
+    final seconds = (clamped % 60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
   }
 
   /// Simple elastic pulse curve: 0→~1.2→0 in one cycle.

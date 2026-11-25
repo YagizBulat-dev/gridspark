@@ -213,6 +213,13 @@ List<List<int>> _gridSnapshot(WidgetTester tester) {
   return store.engine.grid.map(List<int>.from).toList();
 }
 
+/// `mm:ss` clock label used by the untimed-mode stopwatch pill.
+String _clock(int totalSeconds) {
+  final minutes = (totalSeconds ~/ 60).toString().padLeft(2, '0');
+  final seconds = (totalSeconds % 60).toString().padLeft(2, '0');
+  return '$minutes:$seconds';
+}
+
 /// Returns true if any cell changed between [snap] and the current grid.
 bool _gridChanged(WidgetTester tester, List<List<int>> snap) {
   final state = tester.state(find.byType(GameScreen));
@@ -410,6 +417,96 @@ void main() {
 
       // After refill the 3 new pieces must be visible too.
       expectTrayBlocksVisible(tester);
+    });
+  });
+
+  // ── Clock: the countdown must tick on its own, not only after a placement.
+  group('game clock', () {
+    testWidgets('timed mode counts down without any placement',
+        (tester) async {
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final services = buildFakeServices(reduceMotion: true);
+      await tester.pumpWidget(buildGameScreen(services, GameMode.timed));
+      await tester.pump(const Duration(milliseconds: 16));
+
+      final state = tester.state(find.byType(GameScreen));
+      final store = (state as dynamic).store as GameStore;
+      expect(store.secondsLeft.value, 120);
+      expect(find.text('120s'), findsOneWidget);
+
+      // No placement happens here: only the clock itself may rebuild the UI.
+      await tester.pump(const Duration(seconds: 1));
+      final seconds = store.secondsLeft.value;
+      expect(seconds, lessThan(120));
+      expect(
+        find.text('${seconds}s'),
+        findsOneWidget,
+        reason: 'The clock text must follow secondsLeft without a placement',
+      );
+
+      // Unmount so the periodic timer is cancelled.
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('untimed modes show a running elapsed clock', (tester) async {
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final services = buildFakeServices(reduceMotion: true);
+      await tester.pumpWidget(buildGameScreen(services, GameMode.classic));
+      await tester.pump(const Duration(milliseconds: 16));
+
+      final state = tester.state(find.byType(GameScreen));
+      final store = (state as dynamic).store as GameStore;
+      expect(store.elapsedSeconds.value, 0);
+
+      await tester.pump(const Duration(seconds: 2));
+      final elapsed = store.elapsedSeconds.value;
+      expect(elapsed, greaterThan(0));
+      expect(find.text(_clock(elapsed)), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('pause freezes the clock until the game resumes',
+        (tester) async {
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final services = buildFakeServices(reduceMotion: true);
+      await tester.pumpWidget(buildGameScreen(services, GameMode.timed));
+      await tester.pump(const Duration(milliseconds: 16));
+
+      final state = tester.state(find.byType(GameScreen));
+      final store = (state as dynamic).store as GameStore;
+
+      await tester.pump(const Duration(seconds: 1));
+      final running = store.secondsLeft.value;
+      expect(running, lessThan(120));
+
+      store.toggleManualPause();
+      await tester.pump(const Duration(seconds: 3));
+      expect(store.secondsLeft.value, running);
+
+      store.toggleManualPause();
+      await tester.pump(const Duration(seconds: 1));
+      expect(store.secondsLeft.value, lessThan(running));
+
+      await tester.pumpWidget(const SizedBox.shrink());
     });
   });
 
