@@ -97,6 +97,8 @@ class AudioService {
     _currentTrack = track;
     try {
       await _musicPlayer!.setReleaseMode(ReleaseMode.loop);
+      // Keep the music well below the sound effects so clears stay punchy.
+      await _musicPlayer!.setVolume(0.6);
       await _musicPlayer!.play(AssetSource(_musicAssetPath(track)));
     } catch (e) {
       // Log decode/load failures in debug builds. Assets are generated PCM
