@@ -172,17 +172,14 @@ class _GameScreenState extends State<GameScreen>
       final repo = services.experiments;
       _currentAssignment =
           repo.assignment(generationExperiment.id) ??
-          const ABTestingEngine().assign(
-            generationExperiment,
-            repo.bucketKey,
-          );
+          const ABTestingEngine().assign(generationExperiment, repo.bucketKey);
       if (repo.assignment(generationExperiment.id) == null) {
         unawaited(repo.saveAssignment(_currentAssignment!));
       }
       variant = generationExperiment.variant(_currentAssignment!.variantId);
     }
-    final useAdaptive = widget.mode == GameMode.rising &&
-        services.settings.adaptiveDifficulty;
+    final useAdaptive =
+        widget.mode == GameMode.rising && services.settings.adaptiveDifficulty;
     store = GameStore(
       widget.mode,
       snapshot: widget.services.gameSnapshots.load(widget.mode),
@@ -489,7 +486,7 @@ class _GameScreenState extends State<GameScreen>
                         onLeave: (_) => _gridKey.currentState?.clearHover(),
                         onAcceptWithDetails: (d) => _gridKey.currentState
                             ?.acceptDropFromGlobal(d.offset, d.data),
-                        builder: (context, _, __) => Column(
+                        builder: (context, _, _) => Column(
                           children: [
                             const Spacer(),
                             Text(
@@ -1078,12 +1075,10 @@ class _AnimatedStat extends StatelessWidget {
     required this.label,
     required this.value,
     required this.reduceMotion,
-    this.color,
   });
   final String label;
   final int value;
   final bool reduceMotion;
-  final Color? color;
   @override
   Widget build(BuildContext context) => Column(
     children: [
@@ -1101,7 +1096,7 @@ class _AnimatedStat extends StatelessWidget {
           style: AppTheme.sora(
             30,
             weight: FontWeight.w800,
-            color: color ?? AppColors.cyan,
+            color: AppColors.cyan,
             letterSpacing: -0.6,
           ),
         ),

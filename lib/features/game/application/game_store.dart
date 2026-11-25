@@ -28,9 +28,9 @@ class GameStore {
     this.onSessionEnd,
     bool wasReplay = false,
     GameAnalyticsTracker? analytics,
-    AdaptiveDifficultyManager? adaptiveDifficulty,
-    double baselineAverageScore = 0,
-    double baselineLossRate = 0,
+    this.adaptiveDifficulty,
+    this.baselineAverageScore = 0,
+    this.baselineLossRate = 0,
     GenerationPolicy generationPolicy = GenerationPolicy.random,
     List<String> generationRecipe = const <String>[],
   }) : engine = engine ?? GameEngine(
@@ -39,10 +39,7 @@ class GameStore {
         ),
        _periodicTimer = periodicTimer ?? Timer.periodic,
        _analytics = analytics ??
-           GameAnalyticsTracker(mode: mode, wasReplay: wasReplay),
-       _adaptiveDifficulty = adaptiveDifficulty,
-       _baselineAverageScore = baselineAverageScore,
-       _baselineLossRate = baselineLossRate {
+           GameAnalyticsTracker(mode: mode, wasReplay: wasReplay) {
     secondsLeft.value = initialSeconds;
     if (snapshot != null && snapshot.mode == mode && snapshot.isValid) {
       if (!_restore(snapshot)) {
@@ -65,9 +62,9 @@ class GameStore {
   final FutureOr<void> Function(GameProgressEvent event)? onProgress;
   final FutureOr<void> Function(GameSession session)? onSessionEnd;
   final GameAnalyticsTracker _analytics;
-  final AdaptiveDifficultyManager? _adaptiveDifficulty;
-  final double _baselineAverageScore;
-  final double _baselineLossRate;
+  final AdaptiveDifficultyManager? adaptiveDifficulty;
+  final double baselineAverageScore;
+  final double baselineLossRate;
   bool _sessionFinalized = false;
   final gridVersion = Observable(0);
   final score = Observable(0);
@@ -99,7 +96,7 @@ class GameStore {
 
   void _startFresh({List<BlockShape>? initialTray, bool resetEngine = true}) {
     if (resetEngine) engine.reset();
-    _adaptiveDifficulty?.reset();
+    adaptiveDifficulty?.reset();
     engine.setDifficultyMaxCells(null);
     tray
       ..clear()
@@ -119,7 +116,7 @@ class GameStore {
   /// Performance-based for Rising mode; other modes keep their fixed caps.
   void _applyDifficulty() {
     if (mode != GameMode.rising) return;
-    final manager = _adaptiveDifficulty;
+    final manager = adaptiveDifficulty;
     if (manager == null) {
       engine.setDifficultyMaxCells(null);
       final level = engine.difficultyLevelForScore(engine.score);
@@ -135,8 +132,8 @@ class GameStore {
         linesCleared: _analytics.linesCleared,
         bestStreak: _analytics.maxStreak,
         score: engine.score,
-        averageScore: _baselineAverageScore,
-        recentLossRate: _baselineLossRate,
+        averageScore: baselineAverageScore,
+        recentLossRate: baselineLossRate,
         secondsPlayed: seconds < 0 ? 0 : seconds,
       ),
     );
@@ -209,7 +206,7 @@ class GameStore {
       streak.value = snapshot.streak;
       bestStreak.value = snapshot.bestStreak;
       secondsLeft.value = snapshot.secondsLeft;
-      _adaptiveDifficulty?.reset();
+      adaptiveDifficulty?.reset();
       _applyDifficulty();
       if (!engine.hasAnyMove(tray.whereType<BlockShape>())) {
         _endGame(GameEndReason.boardFull, fatalShapeId: _stuckShapeId());
