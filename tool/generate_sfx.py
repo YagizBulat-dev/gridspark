@@ -77,12 +77,19 @@ NOTE = {"C4": 261.63, "E4": 329.63, "G4": 392.0, "A3": 220.0, "E3": 164.81,
 
 
 def make_place():
-    x = t(0.16)
-    sweep = 190 * np.exp(-x * 9) + 70  # pitch drop = "thock"
-    body = np.sin(2 * np.pi * np.cumsum(sweep) / SR) * np.exp(-x / 0.045)
-    click = rng.standard_normal(len(x)) * np.exp(-x / 0.004) * 0.35
-    tick = np.sin(2 * np.pi * 1400 * x) * np.exp(-x / 0.008) * 0.15
-    return body + lowpass(click, 5000) + tick
+    """Crisp wooden 'pop': audible on phone speakers (energy 300 Hz - 5 kHz)."""
+    x = t(0.14)
+    sweep = 330 + 520 * np.exp(-x * 55)          # quick downward pitch slide
+    pop = np.sin(2 * np.pi * np.cumsum(sweep) / SR) * np.exp(-x / 0.05)
+    low = np.sin(2 * np.pi * 170 * x) * np.exp(-x / 0.035) * 0.25
+    click = bp_noise(len(x), 1800, 5200) * np.exp(-x / 0.007) * 0.55
+    return pop * 0.85 + low + click
+
+
+def bp_noise(n, lo, hi):
+    from scipy import signal
+    sos = signal.butter(2, [lo, hi], "band", fs=SR, output="sos")
+    return signal.sosfilt(sos, rng.standard_normal(n))
 
 
 def make_clear():
@@ -103,12 +110,12 @@ def make_combo():
 
 
 def make_invalid():
-    buf = np.zeros(int(SR * 0.22))
-    for k, f in enumerate([150, 120]):
-        x = t(0.08)
-        sq = np.sign(np.sin(2 * np.pi * f * x)) * 0.6 + np.sin(2 * np.pi * f * x) * 0.4
-        sig = lowpass(sq, 900) * np.exp(-x / 0.05)
-        place_at(buf, sig, k * 0.09)
+    buf = np.zeros(int(SR * 0.2))
+    for k, f in enumerate([360, 285]):
+        x = t(0.075)
+        sq = np.sign(np.sin(2 * np.pi * f * x)) * 0.55 + np.sin(2 * np.pi * f * x) * 0.45
+        sig = lowpass(sq, 2200) * np.exp(-x / 0.045)
+        place_at(buf, sig, k * 0.085)
     return buf
 
 
@@ -136,7 +143,7 @@ def place_at_buf(n, sig, start):
 
 def make_game_over():
     buf = np.zeros(int(SR * 1.2))
-    for i, n in enumerate(["E4", "C4", "A3", "E3"]):
+    for i, n in enumerate(["E5", "C5", "A4", "E4"]):
         sig = bell(NOTE[n], 0.55, 0.22, 0.5) * (1.0 - 0.1 * i)
         place_at(buf, sig, i * 0.2)
     return echo(buf, 0.14, 0.3, 3)

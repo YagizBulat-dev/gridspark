@@ -20,9 +20,13 @@ class AudioService {
   AudioService(this.settings);
   final SettingsStore settings;
 
-  // SFX pool — 3 players so rapid sounds (e.g. combo clears) don't cut each other
-  final List<AudioPlayer> _sfxPlayers = [];
-  static const int _sfxPoolSize = 3;
+  // One small pool of low-latency, pre-loaded players PER sound effect, so a
+  // block placement, a clear and a tray refill can all fire at the same moment
+  // without cutting each other off or re-loading the asset each time.
+  final Map<Sfx, List<AudioPlayer>> _sfxPools = {};
+  final Map<Sfx, int> _sfxNext = {};
+  final Map<AudioPlayer, double> _sfxRate = {};
+  static const int _playersPerSfx = 2;
 
   // Music
   AudioPlayer? _musicPlayer;
@@ -32,9 +36,24 @@ class AudioService {
   bool _initialized = false;
 
   Future<void> init() async {
-    // Pre-create SFX players
-    for (var i = 0; i < _sfxPoolSize; i++) {
-      _sfxPlayers.add(AudioPlayer());
+    // Pre-create and pre-load SFX players (low latency, no reload per play).
+    for (final sfx in Sfx.values) {
+      final pool = <AudioPlayer>[];
+      for (var i = 0; i < _playersPerSfx; i++) {
+        try {
+          final player = AudioPlayer();
+          await player.setPlayerMode(PlayerMode.lowLatency);
+          await player.setReleaseMode(ReleaseMode.stop);
+          await player.setSource(AssetSource(_sfxAssetPath(sfx)));
+          pool.add(player);
+        } catch (e) {
+          assert(() {
+            debugPrint('AudioService.init failed to preload $sfx: $e');
+            return true;
+          }());
+        }
+      }
+      _sfxPools[sfx] = pool;
     }
     _initialized = true;
     settings.addListener(_onSettingsChanged);
@@ -53,30 +72,37 @@ class AudioService {
     }
   }
 
-  AudioPlayer? _acquireSfxPlayer() {
-    for (final p in _sfxPlayers) {
-      if (p.state != PlayerState.playing) return p;
-    }
-    return _sfxPlayers.first; // all busy, interrupt the oldest
+  AudioPlayer? _acquireSfxPlayer(Sfx sfx) {
+    final pool = _sfxPools[sfx];
+    if (pool == null || pool.isEmpty) return null;
+    final i = (_sfxNext[sfx] ?? 0) % pool.length;
+    _sfxNext[sfx] = i + 1;
+    return pool[i]; // round-robin: a fast repeat uses the other player
   }
 
   Future<void> playSfx(Sfx sfx, {double pitch = 1.0}) async {
     if (!settings.sound || !_initialized) return;
-    final player = _acquireSfxPlayer();
+    final player = _acquireSfxPlayer(sfx);
     if (player == null) return;
-    final path = _sfxAssetPath(sfx);
     try {
-      if (pitch != 1.0) {
+      // Always restore the rate: a pitched combo must not leave later sounds
+      // permanently speeded up.
+      if (_sfxRate[player] != pitch) {
         await player.setPlaybackRate(pitch);
+        _sfxRate[player] = pitch;
       }
-      await player.play(AssetSource(path));
+      await player.stop();
+      await player.resume();
     } catch (e) {
-      // Log decode/load failures in debug builds. Assets are generated PCM
-      // WAV files, so a failure here means a missing or corrupted bundle.
-      assert(() {
-        debugPrint('AudioService.playSfx failed: $sfx\nError: $e');
-        return true;
-      }());
+      // Fall back to a plain (slower) play if the pre-loaded source failed.
+      try {
+        await player.play(AssetSource(_sfxAssetPath(sfx)));
+      } catch (e2) {
+        assert(() {
+          debugPrint('AudioService.playSfx failed: $sfx\nError: $e2');
+          return true;
+        }());
+      }
     }
   }
 
@@ -112,9 +138,12 @@ class AudioService {
 
   void dispose() {
     settings.removeListener(_onSettingsChanged);
-    for (final p in _sfxPlayers) {
-      p.dispose();
+    for (final pool in _sfxPools.values) {
+      for (final p in pool) {
+        p.dispose();
+      }
     }
+    _sfxPools.clear();
     _musicPlayer?.dispose();
   }
 }
