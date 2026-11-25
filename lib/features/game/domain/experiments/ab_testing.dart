@@ -44,8 +44,8 @@ const generationExperiment = ExperimentDefinition(
   variants: [
     ExperimentVariant(
       id: 'control',
-      name: 'Kontrol (rastgele)',
-      generationPolicy: GenerationPolicy.random,
+      name: 'Kontrol (akış / kombo destekli)',
+      generationPolicy: GenerationPolicy.clearAssist,
     ),
     ExperimentVariant(
       id: 'board_aware',
@@ -198,7 +198,8 @@ class ABTestingEngine {
         VariantStats(
           variantId: entry.key,
           games: games.length,
-          averageScore: games.fold<int>(0, (s, g) => s + g.score) / games.length,
+          averageScore:
+              games.fold<int>(0, (s, g) => s + g.score) / games.length,
           averageDurationSeconds:
               games.fold<int>(0, (s, g) => s + g.duration.inMilliseconds) /
               games.length /

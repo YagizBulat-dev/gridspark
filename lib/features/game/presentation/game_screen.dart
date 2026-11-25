@@ -196,7 +196,8 @@ class _GameScreenState extends State<GameScreen>
           : null,
       baselineAverageScore: baseline.averageScore,
       baselineLossRate: baseline.firstTenLossRate,
-      generationPolicy: variant?.generationPolicy ?? GenerationPolicy.random,
+      generationPolicy:
+          variant?.generationPolicy ?? GenerationPolicy.clearAssist,
       generationRecipe: variant?.recipe ?? const <String>[],
     );
     _nextSessionIsReplay = false;

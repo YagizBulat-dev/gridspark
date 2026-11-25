@@ -68,6 +68,26 @@ class BoardAwareGenerationStrategy extends GenerationStrategy {
   }
 }
 
+/// Block-Blast style "flow" generator: strongly favours pieces that can
+/// finish a row/column so the player can chain clears, still hands out the
+/// odd awkward piece so the board can fill up and the game can end.
+class ClearAssistGenerationStrategy extends GenerationStrategy {
+  const ClearAssistGenerationStrategy();
+
+  @override
+  BlockShape? next(GenerationContext context, Random random) {
+    final crowded = context.analysis.isCrowded;
+    return _weightedPick(context.candidates, (shape) {
+      if (!ValidMove.hasAnyMove(shape, context.grid)) return 0.03;
+      if (ValidMove.canClearLine(shape, context.grid)) {
+        return 1.0;
+      }
+      // Crowded boards need a way out, so plain fits are less attractive.
+      return crowded ? 0.2 : 0.4;
+    }, random);
+  }
+}
+
 /// Scales preferred shape complexity with the difficulty level instead of
 /// relying on score thresholds alone.
 class DifficultyAwareGenerationStrategy extends GenerationStrategy {
@@ -94,7 +114,9 @@ class RecipeGenerationStrategy extends GenerationStrategy {
 
   @override
   BlockShape? next(GenerationContext context, Random random) {
-    if (recipe.isEmpty) return const RandomGenerationStrategy().next(context, random);
+    if (recipe.isEmpty) {
+      return const RandomGenerationStrategy().next(context, random);
+    }
     final id = recipe[context.moves % recipe.length];
     final prescribed = context.candidates.where((s) => s.id == id).firstOrNull;
     if (prescribed != null) return prescribed;
@@ -102,10 +124,13 @@ class RecipeGenerationStrategy extends GenerationStrategy {
   }
 }
 
-GenerationStrategy strategyFor(GenerationPolicy policy, {List<String> recipe = const []}) =>
-    switch (policy) {
-      GenerationPolicy.random => const RandomGenerationStrategy(),
-      GenerationPolicy.boardAware => const BoardAwareGenerationStrategy(),
-      GenerationPolicy.difficultyAware => const DifficultyAwareGenerationStrategy(),
-      GenerationPolicy.recipe => RecipeGenerationStrategy(recipe),
-    };
+GenerationStrategy strategyFor(
+  GenerationPolicy policy, {
+  List<String> recipe = const [],
+}) => switch (policy) {
+  GenerationPolicy.random => const RandomGenerationStrategy(),
+  GenerationPolicy.boardAware => const BoardAwareGenerationStrategy(),
+  GenerationPolicy.difficultyAware => const DifficultyAwareGenerationStrategy(),
+  GenerationPolicy.recipe => RecipeGenerationStrategy(recipe),
+  GenerationPolicy.clearAssist => const ClearAssistGenerationStrategy(),
+};

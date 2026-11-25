@@ -32,9 +32,46 @@ abstract final class ValidMove {
     return false;
   }
 
+  /// True when at least one legal placement of [shape] completes a row or
+  /// column. Used to hand the player pieces that can keep a combo alive.
+  static bool canClearLine(BlockShape shape, List<List<int>> grid) {
+    final size = grid.length;
+    for (var row = 0; row < size; row++) {
+      for (var col = 0; col < size; col++) {
+        if (!canPlace(shape, row, col, grid)) continue;
+        final touchedRows = <int>{};
+        final touchedCols = <int>{};
+        for (final cell in shape.cells) {
+          touchedRows.add(row + cell.row);
+          touchedCols.add(col + cell.col);
+        }
+        final placed = <int>{
+          for (final cell in shape.cells)
+            (row + cell.row) * size + (col + cell.col),
+        };
+        bool filled(int r, int c) =>
+            grid[r][c] >= 0 || placed.contains(r * size + c);
+        for (final r in touchedRows) {
+          var full = true;
+          for (var c = 0; c < size && full; c++) {
+            full = filled(r, c);
+          }
+          if (full) return true;
+        }
+        for (final c in touchedCols) {
+          var full = true;
+          for (var r = 0; r < size && full; r++) {
+            full = filled(r, c);
+          }
+          if (full) return true;
+        }
+      }
+    }
+    return false;
+  }
+
   static List<BlockShape> playable(
     Iterable<BlockShape> shapes,
     List<List<int>> grid,
-  ) =>
-      shapes.where((shape) => hasAnyMove(shape, grid)).toList(growable: false);
+  ) => shapes.where((shape) => hasAnyMove(shape, grid)).toList(growable: false);
 }

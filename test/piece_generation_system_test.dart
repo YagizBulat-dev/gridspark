@@ -81,6 +81,24 @@ void main() {
         isEmpty,
       );
     });
+
+    test('canClearLine detects placements that complete a row or column', () {
+      final grid = emptyBoard(4);
+      for (var col = 0; col < 3; col++) {
+        grid[0][col] = 1;
+      }
+      for (var row = 0; row < 3; row++) {
+        grid[row][1] = 1;
+      }
+
+      expect(ValidMove.canClearLine(ShapeCatalog.byId('single')!, grid), isTrue);
+      expect(ValidMove.canClearLine(ShapeCatalog.byId('v2')!, grid), isTrue);
+      // On an empty board a small piece cannot finish a line by itself.
+      expect(
+        ValidMove.canClearLine(ShapeCatalog.byId('single')!, emptyBoard(4)),
+        isFalse,
+      );
+    });
   });
 
   group('PieceGenerationSystem', () {

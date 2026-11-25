@@ -318,7 +318,8 @@ void main() {
 
   group('GameStore placement edge cases', () {
     test(
-      'line clears build streak, add deterministic bonus, and misses reset it',
+      'line clears build streak, add deterministic bonus, and misses reset it '
+      'after the combo window',
       () {
         final engine = GameEngine();
         for (var col = 0; col < 7; col++) {
@@ -329,6 +330,8 @@ void main() {
           GameMode.classic,
           engine: engine,
           initialTray: const [
+            BlockShape('single', [CellOffset(0, 0)]),
+            BlockShape('single', [CellOffset(0, 0)]),
             BlockShape('single', [CellOffset(0, 0)]),
             BlockShape('single', [CellOffset(0, 0)]),
             BlockShape('single', [CellOffset(0, 0)]),
@@ -343,7 +346,14 @@ void main() {
         expect(store.bestStreak.value, 2);
         expect(store.lastPlacementPoints.value, 425); // 275 + 1*150 streak bonus
         expect(store.score.value, 700); // 275 + 425
+
+        // The streak survives setup moves until the combo window expires.
         expect(store.place(2, 3, 3), isTrue);
+        expect(store.streak.value, 2);
+        expect(store.lastMoveFeedback.value, contains('keep'));
+        expect(store.place(3, 4, 4), isTrue);
+        expect(store.streak.value, 2);
+        expect(store.place(4, 5, 5), isTrue);
         expect(store.streak.value, 0);
         expect(store.bestStreak.value, 2);
         expect(store.lastMoveFeedback.value, contains('reset'));

@@ -10,8 +10,10 @@ import '../domain/generation/generation_context.dart';
 import '../domain/game_engine.dart';
 import '../domain/game_models.dart';
 
-typedef PeriodicTimerFactory =
-    Timer Function(Duration duration, void Function(Timer timer) callback);
+typedef PeriodicTimerFactory = Timer Function(
+  Duration duration,
+  void Function(Timer timer) callback,
+);
 
 class GameStore {
   GameStore(
@@ -33,13 +35,15 @@ class GameStore {
     this.baselineLossRate = 0,
     GenerationPolicy generationPolicy = GenerationPolicy.random,
     List<String> generationRecipe = const <String>[],
-  }) : engine = engine ?? GameEngine(
-          generationPolicy: generationPolicy,
-          generationRecipe: generationRecipe,
-        ),
+  }) : engine =
+           engine ??
+           GameEngine(
+             generationPolicy: generationPolicy,
+             generationRecipe: generationRecipe,
+           ),
        _periodicTimer = periodicTimer ?? Timer.periodic,
-       _analytics = analytics ??
-           GameAnalyticsTracker(mode: mode, wasReplay: wasReplay) {
+       _analytics =
+           analytics ?? GameAnalyticsTracker(mode: mode, wasReplay: wasReplay) {
     secondsLeft.value = initialSeconds;
     if (snapshot != null && snapshot.mode == mode && snapshot.isValid) {
       if (!_restore(snapshot)) {
@@ -75,6 +79,11 @@ class GameStore {
   final lastPlacementPoints = Observable(0);
   final lastClearedLines = Observable(0);
   final streak = Observable(0);
+
+  /// Placements allowed without a clear before the combo streak breaks.
+  /// Matches the Block Blast feel: a streak survives a short "setup" phase.
+  static const int comboWindowMoves = 3;
+  int _movesSinceClear = 0;
   final bestStreak = Observable(0);
   final difficultyLevel = Observable(0);
   final lastMoveFeedback = Observable('Place a piece to begin');
@@ -103,6 +112,7 @@ class GameStore {
       ..addAll(initialTray ?? engine.generateTray(mode));
     score.value = 0;
     streak.value = 0;
+    _movesSinceClear = 0;
     bestStreak.value = 0;
     difficultyLevel.value = mode == GameMode.rising ? 0 : -1;
     lastMoveFeedback.value = 'Place a piece to begin';
@@ -165,9 +175,7 @@ class GameStore {
         snapshot.trayIds.length == snapshotTraySize &&
         nonNullShapes.length == nonEmptyIds.length &&
         nonEmptyIds.toSet().length == nonEmptyIds.length &&
-        nonEmptyIds.every(
-          (id) => ShapeCatalog.isValidSnapshotId(id, mode),
-        ) &&
+        nonEmptyIds.every((id) => ShapeCatalog.isValidSnapshotId(id, mode)) &&
         nonNullShapes.every(
           (shape) => ShapeCatalog.isAllowedInMode(shape, mode),
         );
@@ -283,8 +291,12 @@ class GameStore {
       if (result.lines > 0) {
         streak.value++;
         if (streak.value > bestStreak.value) bestStreak.value = streak.value;
+        _movesSinceClear = 0;
       } else {
-        streak.value = 0;
+        // The streak survives a few setup moves; it only breaks once the
+        // combo window runs out without another clear.
+        _movesSinceClear++;
+        if (_movesSinceClear >= comboWindowMoves) streak.value = 0;
       }
       final streakBonus = result.lines > 0 ? previousStreak * 150 : 0;
       if (streakBonus > 0) engine.addScoreBonus(streakBonus);
@@ -315,12 +327,11 @@ class GameStore {
       lastMoveFeedback.value = result.lines > 0
           ? '${result.lines} line${result.lines == 1 ? '' : 's'} cleared • '
                 '${streak.value}x streak${streakBonus > 0 ? ' • +$streakBonus bonus' : ''}'
-          : 'No clear • streak reset';
+          : streak.value == 0
+          ? 'No clear • streak reset'
+          : 'No clear • ${comboWindowMoves - _movesSinceClear} move(s) to keep ${streak.value}x';
       gridVersion.value++;
-      _analytics.recordPlacement(
-        lines: result.lines,
-        streak: bestStreak.value,
-      );
+      _analytics.recordPlacement(lines: result.lines, streak: bestStreak.value);
       if (!engine.hasAnyMove(tray.whereType<BlockShape>())) {
         _endGame(GameEndReason.boardFull, fatalShapeId: _stuckShapeId());
       }
@@ -386,9 +397,7 @@ class GameStore {
       reason: reason,
       fatalShapeId: fatalShapeId,
     );
-    unawaited(
-      Future<void>.sync(() => writer(session)).catchError((_) {}),
-    );
+    unawaited(Future<void>.sync(() => writer(session)).catchError((_) {}));
   }
 
   GameSnapshot createSnapshot() => GameSnapshot(
@@ -444,10 +453,7 @@ class GameStore {
     if (_disposed) return _snapshotWriteChain;
     if (!isGameOver.value && !_snapshotCleared) saveSnapshot();
     if (!isGameOver.value && engine.moves > 0) {
-      _finalizeSession(
-        GameEndReason.abandoned,
-        fatalShapeId: _stuckShapeId(),
-      );
+      _finalizeSession(GameEndReason.abandoned, fatalShapeId: _stuckShapeId());
     }
     _disposed = true;
     _cancelTimer();

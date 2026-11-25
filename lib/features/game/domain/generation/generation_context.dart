@@ -2,7 +2,13 @@ import '../game_models.dart';
 import 'board_analysis.dart';
 
 /// How a [PieceGenerationSystem] should choose its next shape.
-enum GenerationPolicy { random, boardAware, difficultyAware, recipe }
+enum GenerationPolicy {
+  random,
+  boardAware,
+  difficultyAware,
+  recipe,
+  clearAssist,
+}
 
 /// Everything a strategy needs to make a decision. No engine, no MobX, no UI.
 class GenerationContext {
@@ -31,9 +37,9 @@ class GenerationContext {
 
   /// Shapes allowed by the mode, size cap and exclusion set.
   Iterable<BlockShape> get candidates => ShapeCatalog.all.where(
-        (shape) =>
-            shape.cells.length <= maxCells &&
-            !excludingIds.contains(shape.id) &&
-            ShapeCatalog.isAllowedInMode(shape, mode),
-      );
+    (shape) =>
+        shape.cells.length <= maxCells &&
+        !excludingIds.contains(shape.id) &&
+        ShapeCatalog.isAllowedInMode(shape, mode),
+  );
 }
