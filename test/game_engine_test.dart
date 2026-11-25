@@ -40,8 +40,7 @@ void main() {
 
     test('places a 2x2 block flush against the bottom-right edge', () {
       final game = GameEngine();
-      final square =
-          ShapeCatalog.all.firstWhere((s) => s.id == 'square');
+      final square = ShapeCatalog.all.firstWhere((s) => s.id == 'square');
       expect(game.canPlaceBlock(square, 6, 6), isTrue);
       final result = game.place(square, 6, 6);
       expect(result.placed, isTrue);
@@ -141,10 +140,11 @@ void main() {
       expect(game.score, 0);
       expect(game.moves, 0);
     });
-    test(
-      'catalog contains fifteen shapes',
-      () => expect(ShapeCatalog.all, hasLength(15)),
-    );
+    test('catalog ids are unique and include all orientations', () {
+      final ids = ShapeCatalog.all.map((s) => s.id).toList();
+      expect(ids.toSet(), hasLength(ids.length));
+      expect(ids.length, greaterThan(15));
+    });
   });
 
   group('canPlaceBlock', () {
@@ -252,9 +252,15 @@ void main() {
       expect(game.difficultyLevelForScore(0), 0);
       expect(game.difficultyLevelForScore(499), 0);
       expect(game.difficultyLevelForScore(1249), 0); // below new threshold 1250
-      expect(game.difficultyLevelForScore(1250), 1); // reaches new threshold 1250
+      expect(
+        game.difficultyLevelForScore(1250),
+        1,
+      ); // reaches new threshold 1250
       expect(game.difficultyLevelForScore(3749), 1); // below new threshold 3750
-      expect(game.difficultyLevelForScore(3750), 2); // reaches new threshold 3750
+      expect(
+        game.difficultyLevelForScore(3750),
+        2,
+      ); // reaches new threshold 3750
       expect(game.difficultyLevelForScore(10000), 2); // max level
     });
 

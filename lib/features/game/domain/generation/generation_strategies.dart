@@ -78,12 +78,21 @@ class ClearAssistGenerationStrategy extends GenerationStrategy {
   BlockShape? next(GenerationContext context, Random random) {
     final crowded = context.analysis.isCrowded;
     return _weightedPick(context.candidates, (shape) {
-      if (!ValidMove.hasAnyMove(shape, context.grid)) return 0.03;
-      if (ValidMove.canClearLine(shape, context.grid)) {
-        return 1.0;
+      if (!ValidMove.hasAnyMove(shape, context.grid)) {
+        return 0.02 * shape.weight;
       }
-      // Crowded boards need a way out, so plain fits are less attractive.
-      return crowded ? 0.2 : 0.4;
+      final lines = ValidMove.maxLinesCleared(shape, context.grid);
+      final double fit;
+      if (lines >= 2) {
+        fit = 1.0; // multi-line clears are the jackpot: hand them out freely
+      } else if (lines == 1) {
+        fit = 0.85;
+      } else {
+        // No clear available: a crowded board needs an exit, an open board
+        // just needs a fair piece.
+        fit = crowded ? 0.15 : 0.3;
+      }
+      return fit * shape.weight;
     }, random);
   }
 }

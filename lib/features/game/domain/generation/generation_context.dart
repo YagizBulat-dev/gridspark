@@ -38,6 +38,7 @@ class GenerationContext {
   /// Shapes allowed by the mode, size cap and exclusion set.
   Iterable<BlockShape> get candidates => ShapeCatalog.all.where(
     (shape) =>
+        shape.weight > 0 &&
         shape.cells.length <= maxCells &&
         !excludingIds.contains(shape.id) &&
         ShapeCatalog.isAllowedInMode(shape, mode),

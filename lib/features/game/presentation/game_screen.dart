@@ -19,6 +19,7 @@ import '../domain/difficulty/adaptive_difficulty.dart';
 import '../domain/experiments/ab_testing.dart';
 import '../domain/generation/generation_context.dart';
 import '../domain/game_models.dart';
+import 'effects/combo_rain.dart';
 import 'effects/effects_overlay.dart';
 import 'game_animation.dart';
 import 'widgets/block_shape_view.dart';
@@ -757,6 +758,9 @@ class _GameScreenState extends State<GameScreen>
                 ),
               ),
             ),
+          Positioned.fill(
+            child: ComboRain(store: store, reduceMotion: reduceMotion),
+          ),
           if (comboTrigger > 0)
             _ComboPopup(
               key: ValueKey(comboTrigger),
